@@ -37,6 +37,12 @@ Verify that the configured key has not escaped ignored secret files:
 .\.venv\Scripts\leash.exe secret-audit
 ```
 
+Run a harmless proposal through the real isolated Docker executor:
+
+```powershell
+.\.venv\Scripts\leash.exe check-executor
+```
+
 ## Development
 
 ```powershell
@@ -56,13 +62,16 @@ The current key-independent vertical slice includes:
 - deterministic `allow`, `review`, and `block` policy precedence;
 - recorded and unavailable judge modes plus a strict Muse Wonder adapter;
 - fail-closed handling for provider failures and invalid Muse Wonder output;
-- an explicit action state machine and digest-verifying no-op executor;
+- an explicit action state machine and digest-verifying executor boundary;
+- a pinned Docker shell profile with no network, read-only workspace, non-root user,
+  empty host-secret environment, dropped capabilities and bounded resources/output;
 - expiring, digest-bound human approvals with denial and replay protection;
 - a redacted, hash-chained SQLite audit feed and integrity verifier;
 - FastAPI health, evaluation, action-event, and audit-verification endpoints; and
 - strict Ruff/Pyright checks plus security-focused tests.
 
-The mock executor deliberately invokes no machine capability. Pending reviews are held only in
-memory, so a restart invalidates them and fails closed. Docker-backed execution, the Spark actor
-loop, dashboard, and benchmark are the next implementation stages.
+The Docker profile deliberately supports only Python version checks and `unittest` runs. File
+mutation, inspected HTTP and Git push remain unavailable until their typed adapters are implemented.
+Pending reviews are held only in memory, so a restart invalidates them and fails closed. The Spark
+actor loop, mutation adapters, dashboard and benchmark are the next implementation stages.
 

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 from pathlib import Path
+from uuid import uuid4
 
 import typer
 import uvicorn
@@ -32,6 +33,7 @@ def config_status() -> None:
     settings = get_settings()
     typer.echo(f"environment={settings.leash_env}")
     typer.echo(f"judge_mode={settings.leash_judge_mode}")
+    typer.echo(f"executor_mode={settings.leash_executor_mode}")
     typer.echo(f"model_api_key_configured={settings.model_api_key_configured}")
     typer.echo(f"spark_model={settings.spark_model}")
     typer.echo(f"judge_model={settings.judge_model}")
@@ -80,6 +82,47 @@ def secret_audit() -> None:
         f"secret_audit=passed scanned_files={result.scanned_files} "
         f"skipped_files={result.skipped_files}"
     )
+
+
+@app.command("check-executor")
+def check_executor() -> None:
+    """Run one harmless proposal through the Docker-backed Leash pipeline."""
+    from leash.api import build_services
+    from leash.contracts import ActionKind, ShellActionProposal, ShellParams
+
+    async def run_check() -> None:
+        settings = get_settings().model_copy(
+            update={"leash_executor_mode": "docker", "leash_judge_mode": "recorded"}
+        )
+        settings.leash_workspace_root.mkdir(parents=True, exist_ok=True)
+        services = build_services(settings)
+        await services.audit.initialize()
+        proposal = ShellActionProposal(
+            kind=ActionKind.SHELL,
+            session_id=uuid4(),
+            task_id=uuid4(),
+            task_text="Verify the isolated Python runtime version.",
+            workspace_id="executor-check",
+            params=ShellParams(executable="python", argv=("--version",)),
+        )
+        result = await services.orchestrator.evaluate(proposal)
+        if result.execution is None or result.execution.executor != "docker_shell":
+            raise RuntimeError("Docker executor did not return a real execution result")
+        if result.execution.exit_code != 0:
+            raise RuntimeError("Docker executor returned a non-zero exit code")
+        typer.echo(
+            "executor_check=passed executor=docker_shell "
+            f"exit_code={result.execution.exit_code} network=none workspace=readonly"
+        )
+
+    try:
+        asyncio.run(run_check())
+    except Exception as exc:
+        typer.echo(
+            f"executor_check=failed error_type={type(exc).__name__}",
+            err=True,
+        )
+        raise typer.Exit(code=1) from None
 
 
 if __name__ == "__main__":

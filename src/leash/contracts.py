@@ -169,10 +169,14 @@ class Verdict(StrictModel):
 class ExecutionResult(StrictModel):
     action_id: UUID
     state: Literal[ActionState.EXECUTED]
-    executor: Literal["mock"]
+    executor: Literal["mock", "docker_shell", "local_file"]
     action_digest: str
     preview_digest: str
     summary: str
+    exit_code: int | None = None
+    stdout: str = ""
+    stderr: str = ""
+    output_truncated: bool = False
 
 
 class HumanDecisionRequest(StrictModel):
@@ -205,6 +209,7 @@ class HealthResponse(StrictModel):
     status: Literal["ok"] = "ok"
     environment: str
     judge_mode: str
+    executor_mode: str
     model_api_key_configured: bool
     spark_model: str
     judge_model: str

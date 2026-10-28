@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 from pathlib import Path
 from urllib.parse import urlsplit, urlunsplit
 
@@ -43,7 +44,7 @@ class PreviewService:
 
         if isinstance(proposal, FileWriteActionProposal):
             path = self._resolve_workspace_path(proposal.params.path)
-            redacted_content, content_findings = self._scanner.scan_and_redact(
+            _, content_findings = self._scanner.scan_and_redact(
                 proposal.params.content, "file_write.content"
             )
             findings.extend(content_findings)
@@ -54,9 +55,13 @@ class PreviewService:
                 "kind": proposal.kind,
                 "path": str(path),
                 "mode": proposal.params.mode,
-                "content": redacted_content,
+                "content_bytes": affected_bytes,
+                "content_sha256": hashlib.sha256(
+                    proposal.params.content.encode("utf-8")
+                ).hexdigest(),
             }
-            if path.name.lower() == ".env" or ".ssh" in {part.lower() for part in path.parts}:
+            protected_parts = {".env", ".git", ".ssh", ".aws", ".codex"}
+            if protected_parts.intersection(part.lower() for part in path.parts):
                 protected.append(str(path))
         elif isinstance(proposal, HttpActionProposal):
             parsed = urlsplit(str(proposal.params.url))

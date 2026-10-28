@@ -21,6 +21,7 @@ async def test_health_starts_without_api_keys(settings: Settings) -> None:
         "status": "ok",
         "environment": "test",
         "judge_mode": "recorded",
+        "executor_mode": "mock",
         "model_api_key_configured": False,
         "spark_model": "muse-spark-1.3",
         "judge_model": "muse-wonder-1.0",

@@ -16,7 +16,13 @@ from leash.contracts import (
     HealthResponse,
     HumanDecisionRequest,
 )
-from leash.executor import Executor, MockExecutor
+from leash.executor import (
+    CapabilityExecutor,
+    DockerShellExecutor,
+    Executor,
+    FileWriteExecutor,
+    MockExecutor,
+)
 from leash.judge import JudgeClient, build_judge
 from leash.orchestrator import EvaluationOrchestrator
 from leash.policy import PolicyEngine
@@ -43,12 +49,29 @@ def build_services(
     policy = PolicyEngine(settings.leash_allowed_http_hosts)
     audit = AuditStore(settings.leash_database_path)
     approvals = approval_store or ApprovalStore(settings.leash_approval_ttl_seconds)
+    resolved_executor = executor
+    if resolved_executor is None:
+        if settings.leash_executor_mode == "docker":
+            resolved_executor = CapabilityExecutor(
+                shell=DockerShellExecutor(
+                    workspace_root=settings.leash_workspace_root,
+                    image=settings.leash_executor_image,
+                    scanner=scanner,
+                    memory_mb=settings.leash_executor_memory_mb,
+                    cpus=settings.leash_executor_cpus,
+                    pids_limit=settings.leash_executor_pids_limit,
+                    output_bytes=settings.leash_executor_output_bytes,
+                ),
+                file_write=FileWriteExecutor(workspace_root=settings.leash_workspace_root),
+            )
+        else:
+            resolved_executor = MockExecutor()
     orchestrator = EvaluationOrchestrator(
         preview_service=preview,
         policy_engine=policy,
         judge=judge or build_judge(settings, scanner),
         audit_store=audit,
-        executor=executor or MockExecutor(),
+        executor=resolved_executor,
         approval_store=approvals,
     )
     return Services(settings=settings, audit=audit, orchestrator=orchestrator)
@@ -72,6 +95,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         return HealthResponse(
             environment=resolved.leash_env,
             judge_mode=resolved.leash_judge_mode,
+            executor_mode=resolved.leash_executor_mode,
             model_api_key_configured=resolved.model_api_key_configured,
             spark_model=resolved.spark_model,
             judge_model=resolved.judge_model,

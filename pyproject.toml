@@ -40,6 +40,7 @@ addopts = "-ra --basetemp=.cache/pytest"
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 testpaths = ["tests"]
+markers = ["docker: requires a running Docker Desktop Linux engine"]
 
 [tool.ruff]
 line-length = 100

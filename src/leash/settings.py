@@ -25,6 +25,15 @@ class Settings(BaseSettings):
     leash_judge_mode: Literal["managed", "recorded", "unavailable"] = "recorded"
     leash_judge_timeout_seconds: float = Field(default=20.0, gt=0, le=120)
     leash_approval_ttl_seconds: int = Field(default=300, ge=10, le=3600)
+    leash_executor_mode: Literal["mock", "docker"] = "mock"
+    leash_executor_image: str = (
+        "python:3.12-slim-bookworm@"
+        "sha256:e697c81897302a4c4333bade000d98038fbb21eb064f8ee1fd42d02ebcd9d337"
+    )
+    leash_executor_memory_mb: int = Field(default=256, ge=128, le=2048)
+    leash_executor_cpus: float = Field(default=1.0, gt=0, le=4)
+    leash_executor_pids_limit: int = Field(default=64, ge=16, le=256)
+    leash_executor_output_bytes: int = Field(default=65_536, ge=4096, le=1_000_000)
     leash_redaction_key: SecretStr = SecretStr("development-only-change-me")
     leash_allowed_http_hosts: Annotated[tuple[str, ...], NoDecode] = (
         "localhost",

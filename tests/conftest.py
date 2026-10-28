@@ -15,6 +15,7 @@ def settings(tmp_path: Path) -> Settings:
         leash_database_path=tmp_path / "audit.sqlite3",
         leash_workspace_root=tmp_path / "workspace",
         leash_judge_mode="recorded",
+        leash_executor_mode="mock",
         leash_redaction_key=SecretStr("test-redaction-key"),
         leash_allowed_http_hosts=("localhost", "127.0.0.1"),
         model_api_key=None,

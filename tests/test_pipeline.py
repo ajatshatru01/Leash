@@ -140,6 +140,27 @@ async def test_path_traversal_is_rejected_before_audit(settings: Settings) -> No
 
 
 @pytest.mark.asyncio
+async def test_git_metadata_write_is_hard_blocked(settings: Settings) -> None:
+    services = build_services(settings)
+    await services.audit.initialize()
+    settings.leash_workspace_root.mkdir()
+    proposal = FileWriteActionProposal(
+        kind=ActionKind.FILE_WRITE,
+        session_id=uuid4(),
+        task_id=uuid4(),
+        task_text="Update a generated configuration file",
+        workspace_id="fixture",
+        params=FileWriteParams(path=".git/config", content="safe-looking content"),
+    )
+
+    result = await services.orchestrator.evaluate(proposal)
+
+    assert result.verdict.decision == Decision.BLOCK
+    assert "PROTECTED_RESOURCE" in result.verdict.reason_codes
+    assert result.execution is None
+
+
+@pytest.mark.asyncio
 async def test_ambiguous_action_fails_to_review(settings: Settings) -> None:
     services = build_services(settings)
     await services.audit.initialize()
@@ -335,5 +356,31 @@ async def test_executor_rejects_preview_digest_mismatch(settings: Settings) -> N
         await MockExecutor().execute(
             proposal=proposal,
             preview=tampered_preview,
+            verdict=result.verdict,
+        )
+
+
+@pytest.mark.asyncio
+async def test_executor_rejects_proposal_changed_after_preview(settings: Settings) -> None:
+    services = build_services(settings)
+    await services.audit.initialize()
+    settings.leash_workspace_root.mkdir()
+    proposal = ShellActionProposal(
+        kind=ActionKind.SHELL,
+        session_id=uuid4(),
+        task_id=uuid4(),
+        task_text="Run the unit tests",
+        workspace_id="fixture",
+        params=ShellParams(executable="pytest", argv=("-q",)),
+    )
+    result = await services.orchestrator.evaluate(proposal)
+    changed_proposal = proposal.model_copy(
+        update={"params": ShellParams(executable="pytest", argv=("-q", "--disable-warnings"))}
+    )
+
+    with pytest.raises(ExecutionDenied, match="Proposal content"):
+        await MockExecutor().execute(
+            proposal=changed_proposal,
+            preview=result.preview,
             verdict=result.verdict,
         )
