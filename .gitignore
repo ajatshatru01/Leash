@@ -1,0 +1,37 @@
+# Secrets and local configuration
+.env
+.env.*
+!.env.example
+
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.pyright/
+*.egg-info/
+dist/
+build/
+
+# Workspace-local runtimes and caches
+.tools/
+.cache/
+data/
+
+# Frontend
+node_modules/
+dashboard/dist/
+
+# Demo and benchmark runtime artifacts
+demo/workspace/
+bench/reports/*.jsonl
+bench/reports/*.sqlite3
+
+# Editors and OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
