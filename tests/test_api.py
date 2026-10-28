@@ -20,6 +20,7 @@ async def test_health_starts_without_api_keys(settings: Settings) -> None:
     assert response.json() == {
         "status": "ok",
         "environment": "test",
+        "actor_mode": "recorded",
         "judge_mode": "recorded",
         "executor_mode": "mock",
         "model_api_key_configured": False,
@@ -60,3 +61,22 @@ async def test_review_can_be_approved_through_http_api(settings: Settings) -> No
     assert decision_response.status_code == 200
     assert decision_response.json()["verdict"]["decision"] == "allow"
     assert decision_response.json()["execution"]["executor"] == "mock"
+
+
+@pytest.mark.asyncio
+async def test_recorded_actor_endpoint_makes_no_provider_call(settings: Settings) -> None:
+    app = create_app(settings)
+
+    async with app.router.lifespan_context(app):
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            response = await client.post(
+                "/v1/agent/run",
+                json={"task_text": "Create a hello file", "workspace_id": "fixture"},
+            )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == "completed"
+    assert payload["actions"] == []
+    assert "recorded mode" in payload["final_message"]

@@ -30,6 +30,13 @@ class HumanDecision(StrEnum):
     DENY = "deny"
 
 
+class AgentRunStatus(StrEnum):
+    COMPLETED = "completed"
+    AWAITING_REVIEW = "awaiting_review"
+    MAX_STEPS = "max_steps"
+    UNAVAILABLE = "unavailable"
+
+
 class VerdictSource(StrEnum):
     RULE = "rule"
     JUDGE = "judge"
@@ -197,6 +204,29 @@ class EvaluationResult(StrictModel):
     execution: ExecutionResult | None = None
 
 
+class AgentRunRequest(StrictModel):
+    task_text: str = Field(min_length=1, max_length=20_000)
+    workspace_id: str = Field(default="default", min_length=1, max_length=128)
+
+
+class AgentActionOutcome(StrictModel):
+    action_id: UUID
+    kind: ActionKind
+    decision: Decision
+    reason_codes: tuple[str, ...]
+    executed: bool
+
+
+class AgentRunResult(StrictModel):
+    session_id: UUID
+    task_id: UUID
+    status: AgentRunStatus
+    final_message: str = Field(default="", max_length=20_000)
+    steps: int
+    actions: tuple[AgentActionOutcome, ...] = ()
+    awaiting_action_id: UUID | None = None
+
+
 class AuditEvent(StrictModel):
     event_id: UUID = Field(default_factory=uuid4)
     action_id: UUID
@@ -208,6 +238,7 @@ class AuditEvent(StrictModel):
 class HealthResponse(StrictModel):
     status: Literal["ok"] = "ok"
     environment: str
+    actor_mode: str
     judge_mode: str
     executor_mode: str
     model_api_key_configured: bool

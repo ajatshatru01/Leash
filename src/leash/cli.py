@@ -32,6 +32,7 @@ def config_status() -> None:
     """Print configuration presence without exposing secrets."""
     settings = get_settings()
     typer.echo(f"environment={settings.leash_env}")
+    typer.echo(f"actor_mode={settings.leash_actor_mode}")
     typer.echo(f"judge_mode={settings.leash_judge_mode}")
     typer.echo(f"executor_mode={settings.leash_executor_mode}")
     typer.echo(f"model_api_key_configured={settings.model_api_key_configured}")

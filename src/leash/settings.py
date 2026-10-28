@@ -22,6 +22,10 @@ class Settings(BaseSettings):
     leash_log_level: str = "INFO"
     leash_database_path: Path = Path("data/leash.sqlite3")
     leash_workspace_root: Path = Path("demo/workspace")
+    leash_actor_mode: Literal["managed", "recorded", "unavailable"] = "recorded"
+    leash_agent_max_steps: int = Field(default=8, ge=1, le=32)
+    leash_spark_reasoning_effort: Literal["low", "medium", "high"] = "low"
+    leash_spark_max_completion_tokens: int = Field(default=4096, ge=256, le=32_768)
     leash_judge_mode: Literal["managed", "recorded", "unavailable"] = "recorded"
     leash_judge_timeout_seconds: float = Field(default=20.0, gt=0, le=120)
     leash_approval_ttl_seconds: int = Field(default=300, ge=10, le=3600)

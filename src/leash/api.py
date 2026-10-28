@@ -7,10 +7,13 @@ from uuid import UUID
 
 from fastapi import FastAPI, HTTPException
 
+from leash.agent import AgentRunner, SparkClient, build_spark_client
 from leash.approval import ApprovalError, ApprovalStore
 from leash.audit import AuditStore
 from leash.contracts import (
     ActionProposal,
+    AgentRunRequest,
+    AgentRunResult,
     ApprovalResult,
     EvaluationResult,
     HealthResponse,
@@ -36,6 +39,7 @@ class Services:
     settings: Settings
     audit: AuditStore
     orchestrator: EvaluationOrchestrator
+    agent: AgentRunner
 
 
 def build_services(
@@ -43,6 +47,7 @@ def build_services(
     judge: JudgeClient | None = None,
     executor: Executor | None = None,
     approval_store: ApprovalStore | None = None,
+    spark_client: SparkClient | None = None,
 ) -> Services:
     scanner = SecretScanner(settings.leash_redaction_key.get_secret_value())
     preview = PreviewService(settings.leash_workspace_root, scanner)
@@ -74,7 +79,13 @@ def build_services(
         executor=resolved_executor,
         approval_store=approvals,
     )
-    return Services(settings=settings, audit=audit, orchestrator=orchestrator)
+    agent = AgentRunner(
+        client=spark_client or build_spark_client(settings),
+        orchestrator=orchestrator,
+        scanner=scanner,
+        max_steps=settings.leash_agent_max_steps,
+    )
+    return Services(settings=settings, audit=audit, orchestrator=orchestrator, agent=agent)
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -94,12 +105,17 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def health() -> HealthResponse:
         return HealthResponse(
             environment=resolved.leash_env,
+            actor_mode=resolved.leash_actor_mode,
             judge_mode=resolved.leash_judge_mode,
             executor_mode=resolved.leash_executor_mode,
             model_api_key_configured=resolved.model_api_key_configured,
             spark_model=resolved.spark_model,
             judge_model=resolved.judge_model,
         )
+
+    @app.post("/v1/agent/run", response_model=AgentRunResult)
+    async def run_agent(request: AgentRunRequest) -> AgentRunResult:
+        return await services.agent.run(request.task_text, request.workspace_id)
 
     @app.post("/v1/actions/evaluate", response_model=EvaluationResult)
     async def evaluate(proposal: ActionProposal) -> EvaluationResult:
