@@ -7,10 +7,10 @@ import sqlite3
 from contextlib import closing
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 from uuid import UUID
 
-from leash.contracts import AuditEvent, AuditRecord
+from leash.contracts import AuditEvent, AuditRecord, LatencySummary, TelemetrySummary
 from leash.digest import canonical_json
 
 
@@ -129,6 +129,108 @@ class AuditStore:
 
     async def recent_events(self, limit: int = 100) -> tuple[AuditRecord, ...]:
         return self._recent_events_sync(limit)
+
+    async def telemetry_summary(self) -> TelemetrySummary:
+        return self._telemetry_summary_sync()
+
+    def _telemetry_summary_sync(self) -> TelemetrySummary:
+        with closing(self._connect()) as db:
+            rows = db.execute(
+                "SELECT stage, payload_json FROM audit_events ORDER BY sequence"
+            ).fetchall()
+
+        spark_calls = 0
+        wonder_calls = 0
+        wonder_escalations = 0
+        cache_hits = 0
+        avoided = 0
+        budget_exhaustions = 0
+        prompt_tokens = 0
+        completion_tokens = 0
+        total_tokens = 0
+        estimated_cost_usd = 0.0
+        priced_calls = 0
+        unpriced_calls = 0
+        latency_values: dict[str, list[float]] = {}
+        for row in rows:
+            stage = str(row["stage"])
+            payload = cast(dict[str, object], json.loads(str(row["payload_json"])))
+            if stage == "model_call":
+                component = payload.get("component")
+                usage = payload.get("usage")
+                if isinstance(usage, dict):
+                    typed_usage = cast(dict[str, object], usage)
+                    is_recorded = (
+                        typed_usage.get("source") == "recorded"
+                        or typed_usage.get("provider") == "recorded"
+                    )
+                    if not is_recorded and component == "spark":
+                        spark_calls += 1
+                    elif not is_recorded and component == "wonder":
+                        wonder_calls += 1
+                    if not is_recorded:
+                        prompt_value = typed_usage.get("prompt_tokens", 0)
+                        completion_value = typed_usage.get("completion_tokens", 0)
+                        total_value = typed_usage.get("total_tokens", 0)
+                        prompt_tokens += (
+                            int(prompt_value) if isinstance(prompt_value, int) else 0
+                        )
+                        completion_tokens += (
+                            int(completion_value) if isinstance(completion_value, int) else 0
+                        )
+                        total_tokens += int(total_value) if isinstance(total_value, int) else 0
+                        cost = typed_usage.get("estimated_cost_usd")
+                        if isinstance(cost, int | float):
+                            estimated_cost_usd += float(cost)
+                            priced_calls += 1
+                        else:
+                            unpriced_calls += 1
+                elif component == "spark":
+                    spark_calls += 1
+                elif component == "wonder":
+                    wonder_calls += 1
+            elif stage == "model_call_failed":
+                if payload.get("component") == "wonder":
+                    wonder_calls += 1
+                    unpriced_calls += 1
+            elif stage == "judge_escalated":
+                wonder_escalations += 1
+            elif stage == "judge_cache_hit":
+                cache_hits += 1
+            elif stage == "judge_call_avoided":
+                avoided += 1
+            elif stage == "budget_exhausted":
+                budget_exhaustions += 1
+            elif stage == "stage_latency":
+                latency_stage = payload.get("stage")
+                latency_ms = payload.get("latency_ms")
+                if isinstance(latency_stage, str) and isinstance(latency_ms, int | float):
+                    latency_values.setdefault(latency_stage, []).append(float(latency_ms))
+
+        latency = {
+            stage: LatencySummary(
+                samples=len(values),
+                average_ms=round(sum(values) / len(values), 3),
+                maximum_ms=round(max(values), 3),
+            )
+            for stage, values in sorted(latency_values.items())
+            if values
+        }
+        return TelemetrySummary(
+            spark_calls=spark_calls,
+            wonder_calls=wonder_calls,
+            wonder_escalations=wonder_escalations,
+            judge_cache_hits=cache_hits,
+            locally_avoided_judge_calls=avoided,
+            budget_exhaustions=budget_exhaustions,
+            prompt_tokens=prompt_tokens,
+            completion_tokens=completion_tokens,
+            total_tokens=total_tokens,
+            estimated_cost_usd=round(estimated_cost_usd, 8),
+            priced_model_calls=priced_calls,
+            unpriced_model_calls=unpriced_calls,
+            stage_latency=latency,
+        )
 
     def _recent_events_sync(self, limit: int) -> tuple[AuditRecord, ...]:
         if not 1 <= limit <= 500:

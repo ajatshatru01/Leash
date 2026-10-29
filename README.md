@@ -85,16 +85,24 @@ configuration it returns a recorded response and makes no provider request. A de
 requires changing `LEASH_ACTOR_MODE` to `managed`; Leash will then expose only the four typed
 proposal tools, never its executor or machine credentials.
 
+`GET /v1/telemetry` returns audit-derived token, configured-cost, cache, escalation, avoided-call,
+budget-stop, and stage-latency metrics. Cost remains explicitly `unpriced` in the dashboard until
+the optional per-million-token rates in `.env` are configured; Leash does not hard-code provider
+prices that can change.
+
 ## Implemented foundation
 
 The current key-independent vertical slice includes:
 
 - strict, versioned proposals for shell, file-write, HTTP, and git-push actions;
 - a bounded Spark actor loop with proposal-only tools, immutable task binding, denial feedback,
+  deterministic history compaction, bounded recent receipts, session token/step budgets,
   secret-redacted history, single-action turns, and fail-closed provider/gateway errors;
 - canonical impact previews with local secret redaction and protected-path handling;
 - deterministic `allow`, `review`, and `block` policy precedence;
 - recorded and unavailable judge modes plus a strict Muse Wonder adapter;
+- selective Wonder escalation with per-session call budgets and exact sanitized-packet caching;
+- cache keys bound to the Wonder model plus prompt and deterministic-policy versions;
 - fail-closed handling for provider failures and invalid Muse Wonder output;
 - an explicit action state machine and digest-verifying executor boundary;
 - a pinned Docker shell profile with no network, read-only workspace, non-root user,
@@ -104,13 +112,15 @@ The current key-independent vertical slice includes:
   redacted responses, and an inert hash-and-counter-only capture receiver;
 - expiring, digest-bound human approvals with denial and replay protection;
 - a redacted, hash-chained SQLite audit feed and integrity verifier;
+- audit events for provider calls, cache hits, deterministic avoided calls, budget stops, token
+  usage, configured cost estimates, and per-stage latency;
 - a responsive React dashboard with live decisions, exact impact, redacted evidence, capability-
-  aware approve/deny controls, and audit-chain health;
-- FastAPI health, evaluation, action-event, and audit-verification endpoints; and
+  aware approve/deny controls, audit-chain health, and model-efficiency telemetry;
+- FastAPI health, evaluation, action-event, telemetry, and audit-verification endpoints; and
 - strict Ruff/Pyright checks plus security-focused tests.
 
 The Docker profile deliberately supports only Python version checks and `unittest` runs. Inspected
-HTTP and Git push remain unavailable until their typed adapters are implemented. Pending reviews
-are held only in memory, so a restart invalidates them and fails closed. The dashboard, expanded
-impact previews, outbound exfiltration demo, and benchmark are the next implementation stages.
+loopback HTTP is implemented; Git push remains unavailable until its typed adapter is built.
+Pending reviews and the exact-packet judge cache are held only in memory, so a restart invalidates
+them and fails closed. Expanded impact previews and LeashBench are the next implementation stages.
 

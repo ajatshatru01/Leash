@@ -24,10 +24,22 @@ class Settings(BaseSettings):
     leash_workspace_root: Path = Path("demo/workspace")
     leash_actor_mode: Literal["managed", "recorded", "unavailable"] = "recorded"
     leash_agent_max_steps: int = Field(default=8, ge=1, le=32)
+    leash_agent_token_budget: int = Field(default=32_000, ge=1024, le=2_000_000)
+    leash_agent_recent_receipts: int = Field(default=4, ge=1, le=16)
+    leash_agent_receipt_bytes: int = Field(default=4096, ge=512, le=65_536)
     leash_spark_reasoning_effort: Literal["low", "medium", "high"] = "low"
     leash_spark_max_completion_tokens: int = Field(default=4096, ge=256, le=32_768)
+    leash_spark_input_cost_per_million_usd: float | None = Field(default=None, ge=0)
+    leash_spark_output_cost_per_million_usd: float | None = Field(default=None, ge=0)
     leash_judge_mode: Literal["managed", "recorded", "unavailable"] = "recorded"
     leash_judge_timeout_seconds: float = Field(default=20.0, gt=0, le=120)
+    leash_judge_max_calls_per_session: int = Field(default=4, ge=0, le=32)
+    leash_judge_prompt_version: str = Field(
+        default="wonder-safety-v1", min_length=1, max_length=128
+    )
+    leash_policy_version: str = Field(default="demo-policy-v1", min_length=1, max_length=128)
+    leash_wonder_input_cost_per_million_usd: float | None = Field(default=None, ge=0)
+    leash_wonder_output_cost_per_million_usd: float | None = Field(default=None, ge=0)
     leash_approval_ttl_seconds: int = Field(default=300, ge=10, le=3600)
     leash_executor_mode: Literal["mock", "docker"] = "mock"
     leash_executor_image: str = (

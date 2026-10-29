@@ -8,10 +8,26 @@ import type {
   ImpactPreview,
   IntegrityStatus,
   PendingReview,
+  TelemetrySummary,
   Verdict,
 } from "./types";
 
 const EMPTY_INTEGRITY: IntegrityStatus = { valid: false, event_count: 0 };
+const EMPTY_TELEMETRY: TelemetrySummary = {
+  spark_calls: 0,
+  wonder_calls: 0,
+  wonder_escalations: 0,
+  judge_cache_hits: 0,
+  locally_avoided_judge_calls: 0,
+  budget_exhaustions: 0,
+  prompt_tokens: 0,
+  completion_tokens: 0,
+  total_tokens: 0,
+  estimated_cost_usd: 0,
+  priced_model_calls: 0,
+  unpriced_model_calls: 0,
+  stage_latency: {},
+};
 
 function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -69,7 +85,9 @@ function summarize(events: AuditRecord[]): ActionSummary[] {
     if (event.stage === "executed") current.executed = true;
     actions.set(event.action_id, current);
   }
-  return [...actions.values()].sort((a, b) => b.latestSequence - a.latestSequence);
+  return [...actions.values()]
+    .filter((action) => action.preview !== null)
+    .sort((a, b) => b.latestSequence - a.latestSequence);
 }
 
 function shortId(value: string): string {
@@ -166,6 +184,7 @@ export default function App() {
   const [health, setHealth] = useState<Health | null>(null);
   const [integrity, setIntegrity] = useState(EMPTY_INTEGRITY);
   const [events, setEvents] = useState<AuditRecord[]>([]);
+  const [telemetry, setTelemetry] = useState(EMPTY_TELEMETRY);
   const [reviews, setReviews] = useState<PendingReview[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -179,6 +198,7 @@ export default function App() {
       setIntegrity(data.integrity);
       setEvents(data.events);
       setReviews(data.reviews);
+      setTelemetry(data.telemetry);
       setLastUpdated(new Date());
       setError(null);
     } catch {
@@ -259,6 +279,33 @@ export default function App() {
             </strong>
           </div>
           <div><span>Events chained</span><strong>{integrity.event_count}</strong></div>
+        </section>
+
+        <section className="telemetry-strip" aria-label="Model efficiency telemetry">
+          <div><span>Wonder escalations</span><strong>{telemetry.wonder_escalations}</strong></div>
+          <div><span>Actual Wonder calls</span><strong>{telemetry.wonder_calls}</strong></div>
+          <div><span>Exact cache hits</span><strong>{telemetry.judge_cache_hits}</strong></div>
+          <div><span>Locally avoided</span><strong>{telemetry.locally_avoided_judge_calls}</strong></div>
+          <div><span>Model tokens</span><strong>{telemetry.total_tokens.toLocaleString()}</strong></div>
+          <div>
+            <span>Estimated cost</span>
+            <strong>
+              {telemetry.priced_model_calls > 0
+                ? `$${telemetry.estimated_cost_usd.toFixed(4)}`
+                : "unpriced"}
+            </strong>
+          </div>
+        </section>
+
+        <section className="latency-line" aria-label="Average stage latency">
+          <span>Average stage latency</span>
+          {Object.entries(telemetry.stage_latency).map(([stage, value]) => (
+            <code key={stage}>{stage} {value.average_ms.toFixed(1)} ms</code>
+          ))}
+          {Object.keys(telemetry.stage_latency).length === 0 && <code>no samples yet</code>}
+          {telemetry.budget_exhaustions > 0 && (
+            <strong>{telemetry.budget_exhaustions} budget stop(s)</strong>
+          )}
         </section>
 
         {error && <div className="error-banner" role="alert">{error}</div>}

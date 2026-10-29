@@ -24,6 +24,7 @@ from leash.contracts import (
     HealthResponse,
     HumanDecisionRequest,
     PendingReviewView,
+    TelemetrySummary,
 )
 from leash.executor import (
     CapabilityExecutor,
@@ -34,6 +35,7 @@ from leash.executor import (
     MockExecutor,
 )
 from leash.judge import JudgeClient, build_judge
+from leash.judge_runtime import SemanticJudgeRuntime
 from leash.orchestrator import EvaluationOrchestrator
 from leash.policy import PolicyEngine
 from leash.preview import PreviewService
@@ -88,10 +90,19 @@ def build_services(
             )
         else:
             resolved_executor = MockExecutor()
+    resolved_judge = judge or build_judge(settings, scanner)
+    judge_runtime = SemanticJudgeRuntime(
+        client=resolved_judge,
+        scanner=scanner,
+        model=settings.judge_model,
+        prompt_version=settings.leash_judge_prompt_version,
+        policy_version=settings.leash_policy_version,
+        max_calls_per_session=settings.leash_judge_max_calls_per_session,
+    )
     orchestrator = EvaluationOrchestrator(
         preview_service=preview,
         policy_engine=policy,
-        judge=judge or build_judge(settings, scanner),
+        judge_runtime=judge_runtime,
         audit_store=audit,
         executor=resolved_executor,
         approval_store=approvals,
@@ -100,7 +111,13 @@ def build_services(
         client=spark_client or build_spark_client(settings),
         orchestrator=orchestrator,
         scanner=scanner,
+        audit_store=audit,
         max_steps=settings.leash_agent_max_steps,
+        token_budget=settings.leash_agent_token_budget,
+        recent_receipts=settings.leash_agent_recent_receipts,
+        receipt_bytes=settings.leash_agent_receipt_bytes,
+        max_completion_tokens=settings.leash_spark_max_completion_tokens,
+        spark_model=settings.spark_model,
     )
     return Services(
         settings=settings,
@@ -164,6 +181,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         limit: int = Query(default=100, ge=1, le=500),
     ) -> tuple[AuditRecord, ...]:
         return await services.audit.recent_events(limit)
+
+    @app.get("/v1/telemetry", response_model=TelemetrySummary)
+    async def telemetry() -> TelemetrySummary:
+        return await services.audit.telemetry_summary()
 
     @app.get("/v1/reviews", response_model=tuple[PendingReviewView, ...])
     async def pending_reviews() -> tuple[PendingReviewView, ...]:

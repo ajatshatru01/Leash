@@ -74,12 +74,16 @@ async def test_recorded_actor_endpoint_makes_no_provider_call(settings: Settings
                 "/v1/agent/run",
                 json={"task_text": "Create a hello file", "workspace_id": "fixture"},
             )
+            telemetry_response = await client.get("/v1/telemetry")
 
     assert response.status_code == 200
     payload = response.json()
     assert payload["status"] == "completed"
     assert payload["actions"] == []
     assert "recorded mode" in payload["final_message"]
+    assert telemetry_response.status_code == 200
+    assert telemetry_response.json()["spark_calls"] == 0
+    assert telemetry_response.json()["wonder_calls"] == 0
 
 
 @pytest.mark.asyncio

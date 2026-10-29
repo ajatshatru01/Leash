@@ -196,6 +196,19 @@ Expected output:
 
 The response is schema-validated. Invalid output gets at most one constrained retry and then becomes `review`. The judge cannot erase deterministic findings or authorize a hard-blocked action. Prompt template, provider, model identifier, and configuration are recorded with benchmark results. Provider request/response logging must be disabled where the account permits, and no raw suspected secret may enter the request.
 
+Wonder is a selective escalation, not an every-action tax. Deterministic allows and hard blocks
+record a locally avoided-call event and never invoke the judge. Ambiguous actions consume a bounded
+per-session Wonder-call budget. Exhaustion becomes human `review`. Schema-valid verdicts are cached
+by the exact sanitized judgment packet together with model ID, prompt version, and deterministic
+policy version; cache hits consume no model tokens. Provider-reported token usage is preferred,
+while recorded fixtures use explicitly labeled estimates. Changing any version or packet field
+changes the cache digest.
+
+The Spark loop similarly enforces step and token ceilings. It retains only a configured number of
+byte-bounded recent action receipts and replaces older receipts with a deterministic aggregate of
+statuses and reason codes. A response that exceeds the token budget is discarded before any tool
+proposal can reach the gateway.
+
 ### 5.8 Approval service and dashboard
 
 The dashboard shows a chronological action feed with status, concrete impact, reason codes, and redacted evidence. A review card displays exactly what approval covers and offers approve/deny. Agent/model text is escaped as untrusted data.

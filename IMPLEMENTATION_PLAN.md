@@ -238,6 +238,18 @@ Muse Wonder cannot downgrade deterministic policy. Invalid JSON, timeouts, model
 
 ## 7. Implementation phases
 
+### Current implementation status
+
+Phases 1, 2, the loopback-HTTP portion of Phase 3, Phase 4's recorded-provider vertical slice, and
+the core Phase 5 dashboard are implemented. The efficiency milestone is also complete offline:
+Spark history/receipt bounds, session token and step budgets, per-session Wonder call budgets,
+fail-to-review exhaustion, provider usage capture, versioned exact-packet caching, stage latency,
+audit telemetry, and dashboard cost/escalation metrics are covered by recorded-provider tests.
+No Meta API request is required to validate this milestone.
+
+Cost estimates are emitted only when explicit current pricing inputs are configured. Unpriced calls
+remain visible instead of being misleadingly reported as free.
+
 ### Phase 0 — provider and API spike
 
 Build before any UI.

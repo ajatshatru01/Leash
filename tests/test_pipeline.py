@@ -18,7 +18,7 @@ from leash.contracts import (
     HumanDecision,
     HumanDecisionRequest,
     ImpactPreview,
-    JudgeVerdict,
+    JudgeCallResult,
     PolicyOutcome,
     ShellActionProposal,
     ShellParams,
@@ -34,7 +34,7 @@ class FailingJudge:
         task_text: str,
         preview: ImpactPreview,
         policy: PolicyOutcome,
-    ) -> JudgeVerdict:
+    ) -> JudgeCallResult:
         del task_text, preview, policy
         raise RuntimeError("provider unavailable")
 
@@ -60,7 +60,7 @@ async def test_safe_allowlisted_shell_is_allowed(settings: Settings) -> None:
     assert result.execution.executor == "mock"
     valid, count = await services.audit.verify()
     assert valid is True
-    assert count == 4
+    assert count == 8
 
 
 @pytest.mark.asyncio

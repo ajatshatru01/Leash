@@ -108,19 +108,19 @@ async def check_wonder(settings: Settings) -> ModelCheckResult:
         requires_judge=True,
     )
     started = perf_counter()
-    verdict = await judge.judge(
+    result = await judge.judge(
         task_text="Run the project's unit tests.",
         preview=preview,
         policy=policy,
     )
     latency_ms = round((perf_counter() - started) * 1000)
-    if "INVALID_JUDGE_OUTPUT" in verdict.reason_codes:
+    if "INVALID_JUDGE_OUTPUT" in result.verdict.reason_codes:
         raise ValueError("Muse Wonder did not return a schema-valid verdict")
     return ModelCheckResult(
         role="judge",
         model=settings.judge_model,
         latency_ms=latency_ms,
-        detail=f"schema_valid_decision={verdict.decision}",
+        detail=f"schema_valid_decision={result.verdict.decision}",
     )
 
 

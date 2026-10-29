@@ -34,6 +34,7 @@ class AgentRunStatus(StrEnum):
     COMPLETED = "completed"
     AWAITING_REVIEW = "awaiting_review"
     MAX_STEPS = "max_steps"
+    BUDGET_EXHAUSTED = "budget_exhausted"
     UNAVAILABLE = "unavailable"
 
 
@@ -161,6 +162,21 @@ class JudgeVerdict(StrictModel):
     evidence_refs: tuple[str, ...] = ()
 
 
+class ModelUsage(StrictModel):
+    provider: str
+    model: str
+    prompt_tokens: int = Field(ge=0)
+    completion_tokens: int = Field(ge=0)
+    total_tokens: int = Field(ge=0)
+    source: Literal["reported", "estimated", "recorded"]
+    estimated_cost_usd: float | None = Field(default=None, ge=0)
+
+
+class JudgeCallResult(StrictModel):
+    verdict: JudgeVerdict
+    usage: ModelUsage
+
+
 class Verdict(StrictModel):
     action_id: UUID
     decision: Decision
@@ -225,6 +241,29 @@ class AgentRunResult(StrictModel):
     steps: int
     actions: tuple[AgentActionOutcome, ...] = ()
     awaiting_action_id: UUID | None = None
+    token_usage: int = Field(default=0, ge=0)
+
+
+class LatencySummary(StrictModel):
+    samples: int = Field(ge=0)
+    average_ms: float = Field(ge=0)
+    maximum_ms: float = Field(ge=0)
+
+
+class TelemetrySummary(StrictModel):
+    spark_calls: int = Field(ge=0)
+    wonder_calls: int = Field(ge=0)
+    wonder_escalations: int = Field(ge=0)
+    judge_cache_hits: int = Field(ge=0)
+    locally_avoided_judge_calls: int = Field(ge=0)
+    budget_exhaustions: int = Field(ge=0)
+    prompt_tokens: int = Field(ge=0)
+    completion_tokens: int = Field(ge=0)
+    total_tokens: int = Field(ge=0)
+    estimated_cost_usd: float = Field(ge=0)
+    priced_model_calls: int = Field(ge=0)
+    unpriced_model_calls: int = Field(ge=0)
+    stage_latency: dict[str, LatencySummary]
 
 
 class PendingReviewView(StrictModel):

@@ -3,6 +3,7 @@ import type {
   Health,
   IntegrityStatus,
   PendingReview,
+  TelemetrySummary,
 } from "./types";
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -17,13 +18,14 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export async function loadDashboard() {
-  const [health, integrity, events, reviews] = await Promise.all([
+  const [health, integrity, events, reviews, telemetry] = await Promise.all([
     request<Health>("/health"),
     request<IntegrityStatus>("/v1/audit/verify"),
     request<AuditRecord[]>("/v1/audit/events?limit=200"),
     request<PendingReview[]>("/v1/reviews"),
+    request<TelemetrySummary>("/v1/telemetry"),
   ]);
-  return { health, integrity, events, reviews };
+  return { health, integrity, events, reviews, telemetry };
 }
 
 export async function decideReview(

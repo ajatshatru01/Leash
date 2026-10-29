@@ -72,6 +72,28 @@ export interface IntegrityStatus {
   event_count: number;
 }
 
+export interface LatencySummary {
+  samples: number;
+  average_ms: number;
+  maximum_ms: number;
+}
+
+export interface TelemetrySummary {
+  spark_calls: number;
+  wonder_calls: number;
+  wonder_escalations: number;
+  judge_cache_hits: number;
+  locally_avoided_judge_calls: number;
+  budget_exhaustions: number;
+  prompt_tokens: number;
+  completion_tokens: number;
+  total_tokens: number;
+  estimated_cost_usd: number;
+  priced_model_calls: number;
+  unpriced_model_calls: number;
+  stage_latency: Record<string, LatencySummary>;
+}
+
 export interface ActionSummary {
   actionId: string;
   latestSequence: number;
