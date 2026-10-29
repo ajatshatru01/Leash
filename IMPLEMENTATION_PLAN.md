@@ -247,6 +247,12 @@ fail-to-review exhaustion, provider usage capture, versioned exact-packet cachin
 audit telemetry, and dashboard cost/escalation metrics are covered by recorded-provider tests.
 No Meta API request is required to validate this milestone.
 
+The usable coding-loop milestone is also implemented offline: bounded/redacted file reads, listings,
+literal search and Git status; exact SHA-256-bound single-replacement patches; stale/non-unique edit
+denial; constrained Python `unittest`/`compileall` validation shapes; and recorded safe and poisoned
+repository sequences. Managed Spark validation remains deliberately deferred to the controlled live
+integration milestone.
+
 Cost estimates are emitted only when explicit current pricing inputs are configured. Unpriced calls
 remain visible instead of being misleadingly reported as free.
 

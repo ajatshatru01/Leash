@@ -5,6 +5,7 @@ from pathlib import Path
 from leash.contracts import (
     ActionProposal,
     Decision,
+    FilePatchActionProposal,
     FileWriteActionProposal,
     GitPushActionProposal,
     HttpActionProposal,
@@ -89,6 +90,28 @@ class PolicyEngine:
                     Decision.REVIEW,
                     "Replacing an existing file requires impact review.",
                     "proposal.params.mode",
+                )
+        elif isinstance(proposal, FilePatchActionProposal):
+            if "expected_hash_mismatch" in preview.uncertainty_flags:
+                add(
+                    "STALE_FILE_SNAPSHOT",
+                    Decision.BLOCK,
+                    "The file changed after inspection; a fresh read and patch are required.",
+                    "preview.normalized_action.current_sha256",
+                )
+            if "patch_match_not_unique" in preview.uncertainty_flags:
+                add(
+                    "PATCH_NOT_UNIQUE",
+                    Decision.BLOCK,
+                    "The expected patch target is missing or not unique.",
+                    "preview.normalized_action.replacement_count",
+                )
+            if preview.secret_findings:
+                add(
+                    "SECRET_PATCH_CONTENT",
+                    Decision.BLOCK,
+                    "The proposed patch introduces likely credential material.",
+                    "preview.secret_findings",
                 )
         else:
             executable = Path(proposal.params.executable).name.lower()

@@ -27,6 +27,10 @@ class Settings(BaseSettings):
     leash_agent_token_budget: int = Field(default=32_000, ge=1024, le=2_000_000)
     leash_agent_recent_receipts: int = Field(default=4, ge=1, le=16)
     leash_agent_receipt_bytes: int = Field(default=4096, ge=512, le=65_536)
+    leash_inspection_max_bytes: int = Field(default=32_768, ge=1024, le=262_144)
+    leash_inspection_max_files: int = Field(default=200, ge=10, le=2000)
+    leash_inspection_max_lines: int = Field(default=400, ge=10, le=4000)
+    leash_inspection_max_depth: int = Field(default=8, ge=1, le=32)
     leash_spark_reasoning_effort: Literal["low", "medium", "high"] = "low"
     leash_spark_max_completion_tokens: int = Field(default=4096, ge=256, le=32_768)
     leash_spark_input_cost_per_million_usd: float | None = Field(default=None, ge=0)

@@ -6,6 +6,7 @@ from urllib.parse import urlsplit, urlunsplit
 
 from leash.contracts import (
     ActionProposal,
+    FilePatchActionProposal,
     FileWriteActionProposal,
     HttpActionProposal,
     ImpactPreview,
@@ -59,6 +60,58 @@ class PreviewService:
                 "content_sha256": hashlib.sha256(
                     proposal.params.content.encode("utf-8")
                 ).hexdigest(),
+            }
+            protected_parts = {".env", ".git", ".ssh", ".aws", ".codex"}
+            if protected_parts.intersection(part.lower() for part in path.parts):
+                protected.append(str(path))
+        elif isinstance(proposal, FilePatchActionProposal):
+            unresolved = self._workspace_root / proposal.params.path
+            if unresolved.is_symlink():
+                raise PreviewError("Symbolic-link patch targets are prohibited")
+            path = self._resolve_workspace_path(proposal.params.path)
+            if not path.is_file():
+                raise PreviewError("File patch requires an existing regular file")
+            if path.stat().st_size > 1_000_000:
+                raise PreviewError("File patch target exceeds the one-megabyte preview limit")
+            raw = path.read_bytes()
+            try:
+                current_text = raw.decode("utf-8")
+            except UnicodeDecodeError as exc:
+                raise PreviewError("File patch requires UTF-8 text") from exc
+            current_hash = hashlib.sha256(raw).hexdigest()
+            replacement_count = current_text.count(proposal.params.old_text)
+            result_text = current_text.replace(
+                proposal.params.old_text,
+                proposal.params.new_text,
+                1,
+            )
+            result_bytes = result_text.encode("utf-8")
+            _, patch_findings = self._scanner.scan_and_redact(
+                result_text,
+                "file_patch.result",
+            )
+            findings.extend(patch_findings)
+            targets = (str(path),)
+            affected_count = 1
+            affected_bytes = len(result_bytes)
+            if current_hash != proposal.params.expected_sha256:
+                uncertainty.append("expected_hash_mismatch")
+            if replacement_count != 1:
+                uncertainty.append("patch_match_not_unique")
+            normalized = {
+                "kind": proposal.kind,
+                "path": str(path),
+                "expected_sha256": proposal.params.expected_sha256,
+                "current_sha256": current_hash,
+                "old_text_sha256": hashlib.sha256(
+                    proposal.params.old_text.encode("utf-8")
+                ).hexdigest(),
+                "new_text_sha256": hashlib.sha256(
+                    proposal.params.new_text.encode("utf-8")
+                ).hexdigest(),
+                "result_sha256": hashlib.sha256(result_bytes).hexdigest(),
+                "replacement_count": replacement_count,
+                "result_bytes": len(result_bytes),
             }
             protected_parts = {".env", ".git", ".ssh", ".aws", ".codex"}
             if protected_parts.intersection(part.lower() for part in path.parts):

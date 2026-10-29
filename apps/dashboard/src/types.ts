@@ -47,7 +47,7 @@ export interface Verdict {
 
 export interface PendingReview {
   action_id: string;
-  kind: "shell" | "file_write" | "http" | "git_push";
+  kind: "shell" | "file_write" | "file_patch" | "http" | "git_push";
   task_text: string;
   preview: ImpactPreview;
   verdict: Verdict;

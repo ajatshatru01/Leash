@@ -20,6 +20,7 @@ from leash.contracts import (
     ActionState,
     Decision,
     ExecutionResult,
+    FilePatchActionProposal,
     FileWriteActionProposal,
     HttpActionProposal,
     ImpactPreview,
@@ -197,6 +198,16 @@ class DockerShellExecutor:
                 item not in {"-c", "--locals"}
                 and not Path(item).is_absolute()
                 and ".." not in Path(item).parts
+                for item in argv[2:]
+            )
+        if len(argv) >= 2 and argv[:2] == ["-m", "compileall"]:
+            return all(
+                item in {"-q", "--quiet"}
+                or (
+                    not item.startswith("-")
+                    and not Path(item).is_absolute()
+                    and ".." not in Path(item).parts
+                )
                 for item in argv[2:]
             )
         return False
@@ -388,7 +399,7 @@ class FileWriteExecutor:
         if proposal.params.mode == "replace" and not target.is_file():
             raise ExecutionDenied("Replace mode requires an existing regular file")
 
-        await asyncio.to_thread(self._atomic_write, target, content, proposal.params.mode)
+        await asyncio.to_thread(self.atomic_write, target, content, proposal.params.mode)
         if hashlib.sha256(target.read_bytes()).hexdigest() != normalized_content_hash:
             raise ExecutionDenied("Written file failed post-execution digest verification")
         return ExecutionResult(
@@ -402,7 +413,7 @@ class FileWriteExecutor:
         )
 
     @staticmethod
-    def _atomic_write(target: Path, content: bytes, mode: str) -> None:
+    def atomic_write(target: Path, content: bytes, mode: str) -> None:
         temporary_path: Path | None = None
         try:
             with tempfile.NamedTemporaryFile(
@@ -425,6 +436,92 @@ class FileWriteExecutor:
         finally:
             if temporary_path is not None:
                 temporary_path.unlink(missing_ok=True)
+
+
+class FilePatchExecutor:
+    def __init__(self, *, workspace_root: Path) -> None:
+        self._workspace_root = workspace_root.resolve()
+
+    async def execute(
+        self,
+        *,
+        proposal: ActionProposal,
+        preview: ImpactPreview,
+        verdict: Verdict,
+    ) -> ExecutionResult:
+        verify_authorization(proposal, preview, verdict)
+        if not isinstance(proposal, FilePatchActionProposal):
+            raise ExecutionDenied("The patch executor requires a file-patch proposal")
+        if preview.protected_resource_hits or preview.secret_findings:
+            raise ExecutionDenied("Protected or secret-bearing patches cannot execute")
+
+        unresolved = self._workspace_root / proposal.params.path
+        if unresolved.is_symlink():
+            raise ExecutionDenied("Symbolic-link patch targets are prohibited")
+        target = unresolved.resolve()
+        if target != self._workspace_root and self._workspace_root not in target.parents:
+            raise ExecutionDenied("Patch target escapes the executor workspace")
+        if not target.is_file():
+            raise ExecutionDenied("Patch target must be an existing regular file")
+        if target.stat().st_size > 1_000_000:
+            raise ExecutionDenied("Patch target exceeds the executor byte limit")
+
+        action = preview.normalized_action
+        normalized_path = action.get("path")
+        current_hash = action.get("current_sha256")
+        expected_hash = action.get("expected_sha256")
+        result_hash = action.get("result_sha256")
+        old_hash = action.get("old_text_sha256")
+        new_hash = action.get("new_text_sha256")
+        replacement_count = action.get("replacement_count")
+        result_bytes = action.get("result_bytes")
+        string_values = (
+            normalized_path,
+            current_hash,
+            expected_hash,
+            result_hash,
+            old_hash,
+            new_hash,
+        )
+        if not all(isinstance(value, str) for value in string_values):
+            raise ExecutionDenied("Normalized file-patch action is invalid")
+        if replacement_count != 1 or not isinstance(result_bytes, int):
+            raise ExecutionDenied("Patch preview does not cover one exact replacement")
+        if normalized_path != str(target) or preview.resolved_targets != (str(target),):
+            raise ExecutionDenied("Resolved patch target does not match the authorization")
+        if expected_hash != proposal.params.expected_sha256 or current_hash != expected_hash:
+            raise ExecutionDenied("Patch expected hash does not match the authorized preview")
+        if hashlib.sha256(proposal.params.old_text.encode("utf-8")).hexdigest() != old_hash:
+            raise ExecutionDenied("Patch old text does not match the authorized preview")
+        if hashlib.sha256(proposal.params.new_text.encode("utf-8")).hexdigest() != new_hash:
+            raise ExecutionDenied("Patch new text does not match the authorized preview")
+
+        raw = target.read_bytes()
+        if hashlib.sha256(raw).hexdigest() != expected_hash:
+            raise ExecutionDenied("Patch target changed after preview; re-inspection is required")
+        try:
+            current_text = raw.decode("utf-8")
+        except UnicodeDecodeError as exc:
+            raise ExecutionDenied("Patch target is no longer valid UTF-8 text") from exc
+        if current_text.count(proposal.params.old_text) != 1:
+            raise ExecutionDenied("Patch target text is no longer unique")
+        updated = current_text.replace(proposal.params.old_text, proposal.params.new_text, 1)
+        content = updated.encode("utf-8")
+        if len(content) != result_bytes or hashlib.sha256(content).hexdigest() != result_hash:
+            raise ExecutionDenied("Computed patch result does not match the authorized preview")
+
+        await asyncio.to_thread(FileWriteExecutor.atomic_write, target, content, "replace")
+        if hashlib.sha256(target.read_bytes()).hexdigest() != result_hash:
+            raise ExecutionDenied("Patched file failed post-execution digest verification")
+        return ExecutionResult(
+            action_id=proposal.id,
+            state=ActionState.EXECUTED,
+            executor="local_patch",
+            action_digest=preview.action_digest,
+            preview_digest=preview.digest,
+            summary="Applied one hash-bound replacement to one authorized workspace file.",
+            exit_code=0,
+        )
 
 
 class HttpExecutor:
@@ -556,10 +653,12 @@ class CapabilityExecutor:
         self,
         shell: DockerShellExecutor,
         file_write: FileWriteExecutor,
+        file_patch: FilePatchExecutor,
         http: HttpExecutor,
     ) -> None:
         self._shell = shell
         self._file_write = file_write
+        self._file_patch = file_patch
         self._http = http
 
     async def execute(
@@ -573,6 +672,12 @@ class CapabilityExecutor:
             return await self._shell.execute(proposal=proposal, preview=preview, verdict=verdict)
         if isinstance(proposal, FileWriteActionProposal):
             return await self._file_write.execute(
+                proposal=proposal,
+                preview=preview,
+                verdict=verdict,
+            )
+        if isinstance(proposal, FilePatchActionProposal):
+            return await self._file_patch.execute(
                 proposal=proposal,
                 preview=preview,
                 verdict=verdict,

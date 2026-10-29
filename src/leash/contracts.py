@@ -15,6 +15,7 @@ class StrictModel(BaseModel):
 class ActionKind(StrEnum):
     SHELL = "shell"
     FILE_WRITE = "file_write"
+    FILE_PATCH = "file_patch"
     HTTP = "http"
     GIT_PUSH = "git_push"
 
@@ -69,6 +70,13 @@ class FileWriteParams(StrictModel):
     mode: Literal["create", "replace"] = "create"
 
 
+class FilePatchParams(StrictModel):
+    path: str = Field(min_length=1, max_length=1024)
+    expected_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    old_text: str = Field(min_length=1, max_length=200_000)
+    new_text: str = Field(max_length=200_000)
+
+
 class HttpParams(StrictModel):
     method: Literal["GET", "POST", "PUT", "PATCH", "DELETE"]
     url: HttpUrl
@@ -104,6 +112,11 @@ class FileWriteActionProposal(ProposalBase):
     params: FileWriteParams
 
 
+class FilePatchActionProposal(ProposalBase):
+    kind: Literal[ActionKind.FILE_PATCH]
+    params: FilePatchParams
+
+
 class HttpActionProposal(ProposalBase):
     kind: Literal[ActionKind.HTTP]
     params: HttpParams
@@ -115,7 +128,11 @@ class GitPushActionProposal(ProposalBase):
 
 
 ActionProposal = Annotated[
-    ShellActionProposal | FileWriteActionProposal | HttpActionProposal | GitPushActionProposal,
+    ShellActionProposal
+    | FileWriteActionProposal
+    | FilePatchActionProposal
+    | HttpActionProposal
+    | GitPushActionProposal,
     Field(discriminator="kind"),
 ]
 
@@ -192,7 +209,7 @@ class Verdict(StrictModel):
 class ExecutionResult(StrictModel):
     action_id: UUID
     state: Literal[ActionState.EXECUTED]
-    executor: Literal["mock", "docker_shell", "local_file", "http"]
+    executor: Literal["mock", "docker_shell", "local_file", "local_patch", "http"]
     action_digest: str
     preview_digest: str
     summary: str
@@ -282,6 +299,13 @@ class CaptureStats(StrictModel):
     bytes_received: int = Field(ge=0)
     last_body_sha256: str | None = Field(default=None, min_length=64, max_length=64)
     last_content_type: str | None = None
+
+
+class WorkspaceInspectionResult(StrictModel):
+    kind: Literal["file", "list", "search", "git_status"]
+    summary: str
+    payload: dict[str, Any]
+    truncated: bool = False
 
 
 class AuditEvent(StrictModel):

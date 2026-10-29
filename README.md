@@ -82,8 +82,9 @@ The API listens on `http://127.0.0.1:8765` by default. `GET /health` reports whe
 
 `POST /v1/agent/run` starts the bounded Spark proposal loop. In the committed default
 configuration it returns a recorded response and makes no provider request. A deliberate live run
-requires changing `LEASH_ACTOR_MODE` to `managed`; Leash will then expose only the four typed
-proposal tools, never its executor or machine credentials.
+requires changing `LEASH_ACTOR_MODE` to `managed`; Leash will then expose only typed proposal
+tools plus bounded read-only inspection tools, never its executor or machine
+credentials.
 
 `GET /v1/telemetry` returns audit-derived token, configured-cost, cache, escalation, avoided-call,
 budget-stop, and stage-latency metrics. Cost remains explicitly `unpriced` in the dashboard until
@@ -98,6 +99,10 @@ The current key-independent vertical slice includes:
 - a bounded Spark actor loop with proposal-only tools, immutable task binding, denial feedback,
   deterministic history compaction, bounded recent receipts, session token/step budgets,
   secret-redacted history, single-action turns, and fail-closed provider/gateway errors;
+- bounded file inspection, workspace listing, literal search, and Git-status tools that reject
+  protected paths, escapes, oversized reads, excessive depth, and unredacted secret output;
+- hash-bound single-replacement patches that recheck the inspected file digest immediately before
+  an atomic write and deterministically reject stale or non-unique edits;
 - canonical impact previews with local secret redaction and protected-path handling;
 - deterministic `allow`, `review`, and `block` policy precedence;
 - recorded and unavailable judge modes plus a strict Muse Wonder adapter;
@@ -119,8 +124,13 @@ The current key-independent vertical slice includes:
 - FastAPI health, evaluation, action-event, telemetry, and audit-verification endpoints; and
 - strict Ruff/Pyright checks plus security-focused tests.
 
-The Docker profile deliberately supports only Python version checks and `unittest` runs. Inspected
+The Docker profile deliberately supports only Python version checks, `unittest` runs, and bounded
+`compileall` validation. Inspected
 loopback HTTP is implemented; Git push remains unavailable until its typed adapter is built.
 Pending reviews and the exact-packet judge cache are held only in memory, so a restart invalidates
 them and fails closed. Expanded impact previews and LeashBench are the next implementation stages.
+
+The recorded-provider test suite includes two complete coding sequences: inspect → patch → validate,
+and inspect poisoned content → block credential egress → apply a safe hash-bound patch. Neither
+sequence makes a managed model request.
 

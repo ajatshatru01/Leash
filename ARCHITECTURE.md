@@ -104,10 +104,23 @@ The harness sends the user's immutable original task to Muse Spark through the M
 
 - `propose_shell(argv, cwd, env_names)`;
 - `propose_file_write(path, content_ref, mode)`;
+- `propose_file_patch(path, expected_sha256, old_text, new_text)`;
 - `propose_http(method, url, headers_ref, body_ref)`;
 - `propose_git_push(remote, refspec, force_mode)`.
 
+Spark also receives read-only inspection tools for bounded file views, file listings, literal text
+search, and Git porcelain status. These tools canonicalize paths, refuse protected or escaping
+targets, cap files/depth/bytes/lines/time, and redact likely secrets before any result enters the
+cloud-model history. File inspection returns a whole-file SHA-256 only when the file is within the
+bounded read profile.
+
 The model does not receive a raw, unrestricted execution tool. After a denial, the harness returns stable reason codes, a plain-language explanation, and constraints for a safer retry.
+
+Routine edits should use a hash-bound patch rather than replacing an entire existing file. Preview
+requires the expected SHA-256 to match the current UTF-8 file and the selected old text to occur
+exactly once. The executor rechecks the action/preview digests, file hash, text uniqueness, and
+computed result digest immediately before an atomic replacement. Any mismatch requires a new
+inspection and proposal.
 
 ### 5.2 Gateway and orchestrator
 

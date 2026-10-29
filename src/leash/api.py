@@ -30,6 +30,7 @@ from leash.executor import (
     CapabilityExecutor,
     DockerShellExecutor,
     Executor,
+    FilePatchExecutor,
     FileWriteExecutor,
     HttpExecutor,
     MockExecutor,
@@ -41,6 +42,7 @@ from leash.policy import PolicyEngine
 from leash.preview import PreviewService
 from leash.secrets import SecretScanner
 from leash.settings import Settings, get_settings
+from leash.workspace import WorkspaceInspector
 
 
 @dataclass(frozen=True)
@@ -79,6 +81,7 @@ def build_services(
                     output_bytes=settings.leash_executor_output_bytes,
                 ),
                 file_write=FileWriteExecutor(workspace_root=settings.leash_workspace_root),
+                file_patch=FilePatchExecutor(workspace_root=settings.leash_workspace_root),
                 http=HttpExecutor(
                     allowed_hosts=settings.leash_allowed_http_hosts,
                     allowed_ports=settings.leash_allowed_http_ports,
@@ -107,10 +110,19 @@ def build_services(
         executor=resolved_executor,
         approval_store=approvals,
     )
+    inspector = WorkspaceInspector(
+        workspace_root=settings.leash_workspace_root,
+        scanner=scanner,
+        max_bytes=settings.leash_inspection_max_bytes,
+        max_files=settings.leash_inspection_max_files,
+        max_lines=settings.leash_inspection_max_lines,
+        max_depth=settings.leash_inspection_max_depth,
+    )
     agent = AgentRunner(
         client=spark_client or build_spark_client(settings),
         orchestrator=orchestrator,
         scanner=scanner,
+        workspace_inspector=inspector,
         audit_store=audit,
         max_steps=settings.leash_agent_max_steps,
         token_budget=settings.leash_agent_token_budget,
@@ -198,7 +210,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             if resolved.leash_executor_mode == "mock":
                 can_approve = True
                 capability_note = "Mock execution is available for this development action."
-            elif item.proposal.kind.value in {"shell", "file_write"}:
+            elif item.proposal.kind.value in {"shell", "file_write", "file_patch"}:
                 can_approve = True
                 capability_note = "A local capability adapter is available for this action kind."
             elif item.proposal.kind.value == "http":
