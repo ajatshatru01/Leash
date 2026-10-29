@@ -176,7 +176,7 @@ class Verdict(StrictModel):
 class ExecutionResult(StrictModel):
     action_id: UUID
     state: Literal[ActionState.EXECUTED]
-    executor: Literal["mock", "docker_shell", "local_file"]
+    executor: Literal["mock", "docker_shell", "local_file", "http"]
     action_digest: str
     preview_digest: str
     summary: str
@@ -227,12 +227,41 @@ class AgentRunResult(StrictModel):
     awaiting_action_id: UUID | None = None
 
 
+class PendingReviewView(StrictModel):
+    action_id: UUID
+    kind: ActionKind
+    task_text: str = Field(max_length=20_000)
+    preview: ImpactPreview
+    verdict: Verdict
+    expires_at: datetime
+    can_approve: bool
+    capability_note: str
+
+
+class CaptureStats(StrictModel):
+    request_count: int = Field(ge=0)
+    bytes_received: int = Field(ge=0)
+    last_body_sha256: str | None = Field(default=None, min_length=64, max_length=64)
+    last_content_type: str | None = None
+
+
 class AuditEvent(StrictModel):
     event_id: UUID = Field(default_factory=uuid4)
     action_id: UUID
     stage: str
     payload: dict[str, Any]
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+
+
+class AuditRecord(StrictModel):
+    sequence: int = Field(ge=1)
+    event_id: UUID
+    action_id: UUID
+    stage: str
+    payload: dict[str, Any]
+    created_at: datetime
+    previous_hash: str = Field(min_length=64, max_length=64)
+    event_hash: str = Field(min_length=64, max_length=64)
 
 
 class HealthResponse(StrictModel):

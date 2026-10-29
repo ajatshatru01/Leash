@@ -43,6 +43,13 @@ class Settings(BaseSettings):
         "localhost",
         "127.0.0.1",
     )
+    leash_allowed_http_ports: Annotated[tuple[int, ...], NoDecode] = (8877,)
+    leash_http_timeout_seconds: float = Field(default=5.0, gt=0, le=30)
+    leash_http_request_bytes: int = Field(default=65_536, ge=1024, le=1_000_000)
+    leash_http_response_bytes: int = Field(default=65_536, ge=1024, le=1_000_000)
+    leash_capture_host: str = "127.0.0.1"
+    leash_capture_port: int = Field(default=8877, ge=1024, le=65_535)
+    leash_capture_request_bytes: int = Field(default=65_536, ge=1024, le=1_000_000)
 
     model_api_key: SecretStr | None = None
     spark_base_url: str = "https://api.meta.ai/v1"
@@ -55,6 +62,13 @@ class Settings(BaseSettings):
     def split_hosts(cls, value: object) -> object:
         if isinstance(value, str):
             return tuple(item.strip().lower() for item in value.split(",") if item.strip())
+        return value
+
+    @field_validator("leash_allowed_http_ports", mode="before")
+    @classmethod
+    def split_ports(cls, value: object) -> object:
+        if isinstance(value, str):
+            return tuple(int(item.strip()) for item in value.split(",") if item.strip())
         return value
 
     @property

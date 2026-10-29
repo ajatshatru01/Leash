@@ -67,3 +67,15 @@ class ApprovalStore:
                 raise ApprovalError("Preview digest does not match the pending review")
             del self._pending[action_id]
             return pending
+
+    async def list_pending(self) -> tuple[PendingAction, ...]:
+        async with self._lock:
+            now = self._clock()
+            expired = [
+                action_id
+                for action_id, pending in self._pending.items()
+                if pending.expires_at <= now
+            ]
+            for action_id in expired:
+                del self._pending[action_id]
+            return tuple(sorted(self._pending.values(), key=lambda pending: pending.expires_at))

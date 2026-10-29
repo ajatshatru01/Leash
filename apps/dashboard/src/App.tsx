@@ -1,0 +1,371 @@
+import { useCallback, useEffect, useMemo, useState } from "react";
+
+import { decideReview, loadDashboard } from "./api";
+import type {
+  ActionSummary,
+  AuditRecord,
+  Health,
+  ImpactPreview,
+  IntegrityStatus,
+  PendingReview,
+  Verdict,
+} from "./types";
+
+const EMPTY_INTEGRITY: IntegrityStatus = { valid: false, event_count: 0 };
+
+function isObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function asPreview(value: unknown): ImpactPreview | null {
+  if (!isObject(value) || typeof value.action_id !== "string") return null;
+  return value as unknown as ImpactPreview;
+}
+
+function asVerdict(value: unknown): Verdict | null {
+  if (
+    !isObject(value) ||
+    !["allow", "review", "block"].includes(String(value.decision))
+  ) {
+    return null;
+  }
+  return value as unknown as Verdict;
+}
+
+function summarize(events: AuditRecord[]): ActionSummary[] {
+  const actions = new Map<string, ActionSummary>();
+  for (const event of events) {
+    const current = actions.get(event.action_id) ?? {
+      actionId: event.action_id,
+      latestSequence: event.sequence,
+      stage: event.stage,
+      kind: "action",
+      decision: null,
+      preview: null,
+      verdict: null,
+      executed: false,
+      createdAt: event.created_at,
+    };
+    current.latestSequence = event.sequence;
+    current.stage = event.stage;
+    if (event.stage === "previewed") {
+      const preview = asPreview(event.payload);
+      if (preview) {
+        current.preview = preview;
+        current.kind = String(preview.normalized_action.kind ?? "action");
+      }
+    }
+    if (
+      event.stage === "verdict" ||
+      event.stage === "human_approved" ||
+      event.stage === "human_denied"
+    ) {
+      const verdict = asVerdict(event.payload);
+      if (verdict) {
+        current.verdict = verdict;
+        current.decision = verdict.decision;
+      }
+    }
+    if (event.stage === "executed") current.executed = true;
+    actions.set(event.action_id, current);
+  }
+  return [...actions.values()].sort((a, b) => b.latestSequence - a.latestSequence);
+}
+
+function shortId(value: string): string {
+  return value.slice(0, 8);
+}
+
+function formatTime(value: string): string {
+  return new Intl.DateTimeFormat(undefined, {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  }).format(new Date(value));
+}
+
+function formatBytes(value: number): string {
+  if (value < 1024) return `${value} B`;
+  return `${(value / 1024).toFixed(1)} KB`;
+}
+
+function DecisionPill({ decision }: { decision: ActionSummary["decision"] }) {
+  const value = decision ?? "pending";
+  return <span className={`decision decision--${value}`}>{value}</span>;
+}
+
+function Metric({ label, value, tone }: { label: string; value: number; tone: string }) {
+  return (
+    <div className="metric">
+      <span className={`metric__mark metric__mark--${tone}`} />
+      <div>
+        <strong>{value.toString().padStart(2, "0")}</strong>
+        <span>{label}</span>
+      </div>
+    </div>
+  );
+}
+
+function PreviewFacts({ preview }: { preview: ImpactPreview }) {
+  return (
+    <div className="facts">
+      <div><span>Files</span><strong>{preview.affected_file_count}</strong></div>
+      <div><span>Bytes</span><strong>{formatBytes(preview.affected_bytes)}</strong></div>
+      <div><span>Destination</span><strong>{preview.network_destination ?? "Local only"}</strong></div>
+      <div><span>Coverage</span><strong>{preview.truncated ? "Truncated" : "Complete"}</strong></div>
+    </div>
+  );
+}
+
+function Evidence({ preview, verdict }: { preview: ImpactPreview; verdict: Verdict | null }) {
+  const items = [
+    ...preview.secret_findings.map((finding) => ({
+      label: finding.kind.replaceAll("_", " "),
+      detail: `${finding.location} · ${finding.confidence} confidence`,
+      tone: "danger",
+    })),
+    ...preview.protected_resource_hits.map((path) => ({
+      label: "protected resource",
+      detail: path,
+      tone: "danger",
+    })),
+    ...preview.uncertainty_flags.map((flag) => ({
+      label: flag.replaceAll("_", " "),
+      detail: "Requires conservative handling",
+      tone: "warning",
+    })),
+  ];
+  return (
+    <section className="detail-section">
+      <div className="section-heading">
+        <span>Evidence</span>
+        <small>{items.length + (verdict?.reason_codes.length ?? 0)} signals</small>
+      </div>
+      <div className="evidence-list">
+        {verdict?.reason_codes.map((code) => (
+          <div className="evidence" key={code}>
+            <span className={`evidence__dot evidence__dot--${verdict.decision}`} />
+            <div><strong>{code}</strong><span>{verdict.explanation}</span></div>
+          </div>
+        ))}
+        {items.map((item, index) => (
+          <div className="evidence" key={`${item.label}-${index}`}>
+            <span className={`evidence__dot evidence__dot--${item.tone}`} />
+            <div><strong>{item.label}</strong><span>{item.detail}</span></div>
+          </div>
+        ))}
+        {items.length === 0 && !verdict?.reason_codes.length && (
+          <p className="muted">No risk evidence recorded for this action.</p>
+        )}
+      </div>
+    </section>
+  );
+}
+
+export default function App() {
+  const [health, setHealth] = useState<Health | null>(null);
+  const [integrity, setIntegrity] = useState(EMPTY_INTEGRITY);
+  const [events, setEvents] = useState<AuditRecord[]>([]);
+  const [reviews, setReviews] = useState<PendingReview[]>([]);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+
+  const refresh = useCallback(async () => {
+    try {
+      const data = await loadDashboard();
+      setHealth(data.health);
+      setIntegrity(data.integrity);
+      setEvents(data.events);
+      setReviews(data.reviews);
+      setLastUpdated(new Date());
+      setError(null);
+    } catch {
+      setError("Gateway unavailable. Waiting for the local Leash service.");
+    }
+  }, []);
+
+  useEffect(() => {
+    void refresh();
+    const timer = window.setInterval(() => void refresh(), 2000);
+    return () => window.clearInterval(timer);
+  }, [refresh]);
+
+  const actions = useMemo(() => summarize(events), [events]);
+  const selected = actions.find((action) => action.actionId === selectedId) ?? actions[0] ?? null;
+  const selectedReview = reviews.find((review) => review.action_id === selected?.actionId) ?? reviews[0] ?? null;
+  const displayPreview = selectedReview?.preview ?? selected?.preview ?? null;
+  const displayVerdict = selectedReview?.verdict ?? selected?.verdict ?? null;
+
+  const metrics = {
+    pending: reviews.length,
+    blocked: actions.filter((action) => action.decision === "block").length,
+    executed: actions.filter((action) => action.executed).length,
+  };
+
+  async function decide(review: PendingReview, decision: "approve" | "deny") {
+    setBusy(decision);
+    try {
+      await decideReview(review, decision);
+      await refresh();
+    } catch {
+      setError("The decision was rejected or expired. The action remains fail-closed.");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  return (
+    <div className="app-shell">
+      <header className="topbar">
+        <a className="brand" href="#top" aria-label="Leash dashboard home">
+          <span className="brand__symbol"><i /><i /><i /></span>
+          <span><strong>LEASH</strong><small>agent control plane</small></span>
+        </a>
+        <div className="topbar__status">
+          <span className={`status-dot ${error ? "status-dot--down" : ""}`} />
+          {error ? "Gateway offline" : "Gateway enforcing"}
+          <span className="separator" />
+          <span className="mono">{health?.environment ?? "connecting"}</span>
+        </div>
+      </header>
+
+      <main id="top">
+        <section className="hero">
+          <div>
+            <p className="eyebrow">LOCAL AUTHORITY · LIVE DECISIONS</p>
+            <h1>The agent proposes.<br /><em>Leash decides.</em></h1>
+            <p className="hero__copy">
+              Every machine action is resolved, judged, and bound to an exact authorization
+              before it reaches your workspace.
+            </p>
+          </div>
+          <div className="metrics" aria-label="Action metrics">
+            <Metric label="awaiting review" value={metrics.pending} tone="amber" />
+            <Metric label="actions blocked" value={metrics.blocked} tone="red" />
+            <Metric label="actions executed" value={metrics.executed} tone="green" />
+          </div>
+        </section>
+
+        <section className="system-strip">
+          <div><span>Spark actor</span><strong>{health?.actor_mode ?? "—"}</strong></div>
+          <div><span>Wonder judge</span><strong>{health?.judge_mode ?? "—"}</strong></div>
+          <div><span>Executor</span><strong>{health?.executor_mode ?? "—"}</strong></div>
+          <div>
+            <span>Audit integrity</span>
+            <strong className={integrity.valid ? "text-green" : "text-red"}>
+              {integrity.valid ? "verified" : "unverified"}
+            </strong>
+          </div>
+          <div><span>Events chained</span><strong>{integrity.event_count}</strong></div>
+        </section>
+
+        {error && <div className="error-banner" role="alert">{error}</div>}
+
+        <section className="workspace">
+          <aside className="feed-panel">
+            <div className="panel-heading">
+              <div><p className="eyebrow">ACTION STREAM</p><h2>Live decisions</h2></div>
+              <span className="live-chip"><i /> live</span>
+            </div>
+            <div className="feed-list">
+              {actions.map((action) => (
+                <button
+                  className={`feed-item ${selected?.actionId === action.actionId ? "feed-item--active" : ""}`}
+                  key={action.actionId}
+                  onClick={() => setSelectedId(action.actionId)}
+                >
+                  <span className={`feed-item__rail feed-item__rail--${action.decision ?? "pending"}`} />
+                  <div className="feed-item__body">
+                    <div><strong>{action.kind.replaceAll("_", " ")}</strong><DecisionPill decision={action.decision} /></div>
+                    <p className="mono">#{shortId(action.actionId)} · {action.stage}</p>
+                    <time>{formatTime(action.createdAt)}</time>
+                  </div>
+                </button>
+              ))}
+              {actions.length === 0 && (
+                <div className="empty-state"><span>◎</span><strong>No actions yet</strong><p>Proposals will appear here as Leash evaluates them.</p></div>
+              )}
+            </div>
+          </aside>
+
+          <article className="detail-panel">
+            <div className="panel-heading panel-heading--detail">
+              <div>
+                <p className="eyebrow">RESOLVED IMPACT</p>
+                <h2>{selected ? `${selected.kind.replaceAll("_", " ")} proposal` : "Select an action"}</h2>
+              </div>
+              <DecisionPill decision={displayVerdict?.decision ?? null} />
+            </div>
+
+            {selectedReview && (
+              <section className="task-card">
+                <span>Immutable user task</span>
+                <p>{selectedReview.task_text}</p>
+              </section>
+            )}
+
+            {displayPreview ? (
+              <>
+                <PreviewFacts preview={displayPreview} />
+                <section className="detail-section">
+                  <div className="section-heading"><span>Resolved targets</span><small>read-only preview</small></div>
+                  <div className="target-list mono">
+                    {displayPreview.resolved_targets.map((target) => <code key={target}>{target}</code>)}
+                    {displayPreview.network_destination && <code>{displayPreview.network_destination}</code>}
+                    {!displayPreview.resolved_targets.length && !displayPreview.network_destination && <p className="muted">No external target resolved.</p>}
+                  </div>
+                </section>
+                <Evidence preview={displayPreview} verdict={displayVerdict} />
+                <section className="digest-card">
+                  <div><span>Action digest</span><code>{displayPreview.action_digest}</code></div>
+                  <div><span>Preview digest</span><code>{displayPreview.digest}</code></div>
+                </section>
+              </>
+            ) : (
+              <div className="empty-state empty-state--large"><span>⌁</span><strong>Impact waits here</strong><p>Choose an evaluated action to inspect its exact targets, evidence, and authorization digests.</p></div>
+            )}
+          </article>
+
+          <aside className="review-panel">
+            <div className="panel-heading">
+              <div><p className="eyebrow">HUMAN BOUNDARY</p><h2>Review queue</h2></div>
+              <span className="queue-count">{reviews.length}</span>
+            </div>
+            {selectedReview ? (
+              <div className="review-card">
+                <div className="review-card__icon">!</div>
+                <h3>Action paused</h3>
+                <p>{selectedReview.verdict.explanation}</p>
+                <div className="review-meta">
+                  <span>Expires</span><strong>{formatTime(selectedReview.expires_at)}</strong>
+                  <span>Decision source</span><strong>{selectedReview.verdict.source}</strong>
+                </div>
+                <div className="review-actions">
+                  <button className="button button--deny" disabled={busy !== null} onClick={() => void decide(selectedReview, "deny")}>{busy === "deny" ? "Denying…" : "Deny"}</button>
+                  <button className="button button--approve" disabled={busy !== null || !selectedReview.can_approve} onClick={() => void decide(selectedReview, "approve")}>{busy === "approve" ? "Approving…" : selectedReview.can_approve ? "Approve exact action" : "Adapter unavailable"}</button>
+                </div>
+                <p className="capability-note">{selectedReview.capability_note}</p>
+                <p className="review-note">Approval covers only the two digests shown. Any mutation forces a new review.</p>
+              </div>
+            ) : (
+              <div className="empty-state"><span>✓</span><strong>Queue clear</strong><p>Routine work flows silently. Consequential ambiguity will pause here.</p></div>
+            )}
+
+            <div className="bench-card">
+              <div><span className="eyebrow">LEASHBENCH</span><strong>Evidence pending</strong></div>
+              <p>No benchmark has been run yet. This card will show measured hybrid results only.</p>
+              <span className="progress"><i /></span>
+            </div>
+          </aside>
+        </section>
+      </main>
+
+      <footer>
+        <span>Leash holds the capability. Models provide signals.</span>
+        <span className="mono">{lastUpdated ? `updated ${formatTime(lastUpdated.toISOString())}` : "connecting"}</span>
+      </footer>
+    </div>
+  );
+}

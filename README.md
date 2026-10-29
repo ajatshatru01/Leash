@@ -43,6 +43,33 @@ Run a harmless proposal through the real isolated Docker executor:
 .\.venv\Scripts\leash.exe check-executor
 ```
 
+Run the inert local exfiltration proof without any external traffic:
+
+```powershell
+# Terminal 1
+.\.venv\Scripts\leash.exe capture-receiver
+
+# Terminal 2
+.\.venv\Scripts\leash.exe serve
+
+# Terminal 3
+.\scripts\egress-demo.ps1
+```
+
+See [`docs/EGRESS_DEMO.md`](docs/EGRESS_DEMO.md) for the expected zero-egress evidence.
+
+Build the local dashboard and serve it from the same FastAPI process:
+
+```powershell
+pnpm --dir apps/dashboard install --frozen-lockfile
+pnpm --dir apps/dashboard run build
+.\.venv\Scripts\leash.exe serve
+```
+
+Open `http://127.0.0.1:8765`. The dashboard polls the local gateway for the redacted action feed,
+pending reviews, resolved impact, and audit integrity. It never receives raw proposal bodies or
+file contents. Approval is disabled when no real adapter exists for an action kind.
+
 ## Development
 
 ```powershell
@@ -73,8 +100,12 @@ The current key-independent vertical slice includes:
 - a pinned Docker shell profile with no network, read-only workspace, non-root user,
   empty host-secret environment, dropped capabilities and bounded resources/output;
 - an atomic local file-write adapter bound to the authorized action and preview digests;
+- an inspected loopback HTTP adapter with a host/port allowlist, no redirects, bounded payloads,
+  redacted responses, and an inert hash-and-counter-only capture receiver;
 - expiring, digest-bound human approvals with denial and replay protection;
 - a redacted, hash-chained SQLite audit feed and integrity verifier;
+- a responsive React dashboard with live decisions, exact impact, redacted evidence, capability-
+  aware approve/deny controls, and audit-chain health;
 - FastAPI health, evaluation, action-event, and audit-verification endpoints; and
 - strict Ruff/Pyright checks plus security-focused tests.
 

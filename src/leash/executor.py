@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+import ipaddress
 import os
 import shutil
 import subprocess
@@ -10,6 +11,9 @@ import threading
 from collections.abc import Mapping
 from pathlib import Path, PurePosixPath
 from typing import BinaryIO, Protocol, cast
+from urllib.parse import urlsplit
+
+import httpx
 
 from leash.contracts import (
     ActionProposal,
@@ -17,6 +21,7 @@ from leash.contracts import (
     Decision,
     ExecutionResult,
     FileWriteActionProposal,
+    HttpActionProposal,
     ImpactPreview,
     ShellActionProposal,
     Verdict,
@@ -422,10 +427,140 @@ class FileWriteExecutor:
                 temporary_path.unlink(missing_ok=True)
 
 
+class HttpExecutor:
+    def __init__(
+        self,
+        *,
+        allowed_hosts: tuple[str, ...],
+        allowed_ports: tuple[int, ...],
+        scanner: SecretScanner,
+        timeout_seconds: float,
+        request_bytes: int,
+        response_bytes: int,
+        transport: httpx.AsyncBaseTransport | None = None,
+    ) -> None:
+        self._allowed_hosts = {host.lower() for host in allowed_hosts}
+        self._allowed_ports = set(allowed_ports)
+        self._scanner = scanner
+        self._timeout = timeout_seconds
+        self._request_bytes = request_bytes
+        self._response_bytes = response_bytes
+        self._transport = transport
+
+    async def execute(
+        self,
+        *,
+        proposal: ActionProposal,
+        preview: ImpactPreview,
+        verdict: Verdict,
+    ) -> ExecutionResult:
+        verify_authorization(proposal, preview, verdict)
+        if not isinstance(proposal, HttpActionProposal):
+            raise ExecutionDenied("The HTTP executor requires an HTTP proposal")
+        if preview.secret_findings:
+            raise ExecutionDenied("Secret-bearing requests cannot reach the HTTP executor")
+
+        action = preview.normalized_action
+        method = action.get("method")
+        url = action.get("url")
+        body = action.get("body")
+        raw_headers = action.get("headers")
+        if not isinstance(method, str) or not isinstance(url, str) or not isinstance(body, str):
+            raise ExecutionDenied("Normalized HTTP action is invalid")
+        if not isinstance(raw_headers, dict):
+            raise ExecutionDenied("Normalized HTTP headers are invalid")
+        headers: dict[str, str] = {}
+        for key, value in cast(dict[object, object], raw_headers).items():
+            if not isinstance(key, str) or not isinstance(value, str):
+                raise ExecutionDenied("Normalized HTTP headers are invalid")
+            headers[key] = value
+
+        parsed = urlsplit(url)
+        host = (parsed.hostname or "").lower()
+        port = parsed.port or (80 if parsed.scheme == "http" else 443)
+        if parsed.scheme != "http":
+            raise ExecutionDenied("The demo HTTP adapter permits loopback HTTP only")
+        if parsed.username is not None or parsed.password is not None:
+            raise ExecutionDenied("Credentials in request URLs are prohibited")
+        if host not in self._allowed_hosts or port not in self._allowed_ports:
+            raise ExecutionDenied("HTTP destination is outside the inspected adapter allowlist")
+        if not self._is_loopback(host):
+            raise ExecutionDenied("The hackathon HTTP adapter is restricted to loopback")
+        if preview.network_destination != host:
+            raise ExecutionDenied("Resolved HTTP destination does not match the authorized preview")
+        if method != proposal.params.method:
+            raise ExecutionDenied("Normalized HTTP method does not match the typed proposal")
+
+        request_size = (
+            len(url.encode("utf-8"))
+            + len(body.encode("utf-8"))
+            + sum(
+                len(key.encode("utf-8")) + len(value.encode("utf-8"))
+                for key, value in headers.items()
+            )
+        )
+        if request_size > self._request_bytes:
+            raise ExecutionDenied("HTTP request exceeds the inspected adapter byte limit")
+
+        output = bytearray()
+        truncated = False
+        async with (
+            httpx.AsyncClient(
+                transport=self._transport,
+                timeout=self._timeout,
+                follow_redirects=False,
+                trust_env=False,
+            ) as client,
+            client.stream(
+                method,
+                url,
+                headers=headers,
+                content=body.encode("utf-8"),
+            ) as response,
+        ):
+            async for chunk in response.aiter_bytes():
+                remaining = self._response_bytes - len(output)
+                if remaining > 0:
+                    output.extend(chunk[:remaining])
+                if len(chunk) > remaining:
+                    truncated = True
+                    break
+            status_code = response.status_code
+
+        response_text = output.decode("utf-8", errors="replace")
+        safe_response, _ = self._scanner.scan_and_redact(response_text, "http.response")
+        return ExecutionResult(
+            action_id=proposal.id,
+            state=ActionState.EXECUTED,
+            executor="http",
+            action_digest=preview.action_digest,
+            preview_digest=preview.digest,
+            summary=f"Inspected loopback HTTP request completed with status {status_code}.",
+            exit_code=0 if 200 <= status_code < 300 else 1,
+            stdout=safe_response,
+            output_truncated=truncated,
+        )
+
+    @staticmethod
+    def _is_loopback(host: str) -> bool:
+        if host == "localhost":
+            return True
+        try:
+            return ipaddress.ip_address(host).is_loopback
+        except ValueError:
+            return False
+
+
 class CapabilityExecutor:
-    def __init__(self, shell: DockerShellExecutor, file_write: FileWriteExecutor) -> None:
+    def __init__(
+        self,
+        shell: DockerShellExecutor,
+        file_write: FileWriteExecutor,
+        http: HttpExecutor,
+    ) -> None:
         self._shell = shell
         self._file_write = file_write
+        self._http = http
 
     async def execute(
         self,
@@ -438,6 +573,12 @@ class CapabilityExecutor:
             return await self._shell.execute(proposal=proposal, preview=preview, verdict=verdict)
         if isinstance(proposal, FileWriteActionProposal):
             return await self._file_write.execute(
+                proposal=proposal,
+                preview=preview,
+                verdict=verdict,
+            )
+        if isinstance(proposal, HttpActionProposal):
+            return await self._http.execute(
                 proposal=proposal,
                 preview=preview,
                 verdict=verdict,

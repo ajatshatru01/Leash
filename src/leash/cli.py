@@ -23,6 +23,7 @@ def serve() -> None:
         host=settings.leash_host,
         port=settings.leash_port,
         reload=settings.leash_env == "development",
+        reload_dirs=["src/leash"] if settings.leash_env == "development" else None,
         log_level=settings.leash_log_level.lower(),
     )
 
@@ -124,6 +125,19 @@ def check_executor() -> None:
             err=True,
         )
         raise typer.Exit(code=1) from None
+
+
+@app.command("capture-receiver")
+def capture_receiver() -> None:
+    """Run the inert loopback receiver used by the exfiltration demo."""
+    settings = get_settings()
+    uvicorn.run(
+        "leash.capture:app",
+        host=settings.leash_capture_host,
+        port=settings.leash_capture_port,
+        reload=False,
+        log_level=settings.leash_log_level.lower(),
+    )
 
 
 if __name__ == "__main__":

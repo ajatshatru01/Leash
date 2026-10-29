@@ -2,12 +2,15 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+import json
 import sqlite3
 from contextlib import closing
+from datetime import datetime
 from pathlib import Path
 from typing import Any
+from uuid import UUID
 
-from leash.contracts import AuditEvent
+from leash.contracts import AuditEvent, AuditRecord
 from leash.digest import canonical_json
 
 
@@ -123,6 +126,36 @@ class AuditStore:
 
     async def events_for_action(self, action_id: str) -> list[dict[str, Any]]:
         return self._events_for_action_sync(action_id)
+
+    async def recent_events(self, limit: int = 100) -> tuple[AuditRecord, ...]:
+        return self._recent_events_sync(limit)
+
+    def _recent_events_sync(self, limit: int) -> tuple[AuditRecord, ...]:
+        if not 1 <= limit <= 500:
+            raise ValueError("Audit event limit must be between 1 and 500")
+        with closing(self._connect()) as db:
+            cursor = db.execute(
+                """
+                SELECT sequence, event_id, action_id, stage, payload_json,
+                       created_at, previous_hash, event_hash
+                FROM audit_events ORDER BY sequence DESC LIMIT ?
+                """,
+                (limit,),
+            )
+            rows = list(reversed(cursor.fetchall()))
+        return tuple(
+            AuditRecord(
+                sequence=int(row["sequence"]),
+                event_id=UUID(str(row["event_id"])),
+                action_id=UUID(str(row["action_id"])),
+                stage=str(row["stage"]),
+                payload=json.loads(str(row["payload_json"])),
+                created_at=datetime.fromisoformat(str(row["created_at"])),
+                previous_hash=str(row["previous_hash"]),
+                event_hash=str(row["event_hash"]),
+            )
+            for row in rows
+        )
 
     def _events_for_action_sync(self, action_id: str) -> list[dict[str, Any]]:
         with closing(self._connect()) as db:

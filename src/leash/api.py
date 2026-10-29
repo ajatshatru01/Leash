@@ -3,9 +3,13 @@ from __future__ import annotations
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
+from pathlib import Path
+from urllib.parse import urlsplit
 from uuid import UUID
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Query
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from leash.agent import AgentRunner, SparkClient, build_spark_client
 from leash.approval import ApprovalError, ApprovalStore
@@ -15,15 +19,18 @@ from leash.contracts import (
     AgentRunRequest,
     AgentRunResult,
     ApprovalResult,
+    AuditRecord,
     EvaluationResult,
     HealthResponse,
     HumanDecisionRequest,
+    PendingReviewView,
 )
 from leash.executor import (
     CapabilityExecutor,
     DockerShellExecutor,
     Executor,
     FileWriteExecutor,
+    HttpExecutor,
     MockExecutor,
 )
 from leash.judge import JudgeClient, build_judge
@@ -40,6 +47,8 @@ class Services:
     audit: AuditStore
     orchestrator: EvaluationOrchestrator
     agent: AgentRunner
+    approvals: ApprovalStore
+    scanner: SecretScanner
 
 
 def build_services(
@@ -68,6 +77,14 @@ def build_services(
                     output_bytes=settings.leash_executor_output_bytes,
                 ),
                 file_write=FileWriteExecutor(workspace_root=settings.leash_workspace_root),
+                http=HttpExecutor(
+                    allowed_hosts=settings.leash_allowed_http_hosts,
+                    allowed_ports=settings.leash_allowed_http_ports,
+                    scanner=scanner,
+                    timeout_seconds=settings.leash_http_timeout_seconds,
+                    request_bytes=settings.leash_http_request_bytes,
+                    response_bytes=settings.leash_http_response_bytes,
+                ),
             )
         else:
             resolved_executor = MockExecutor()
@@ -85,7 +102,14 @@ def build_services(
         scanner=scanner,
         max_steps=settings.leash_agent_max_steps,
     )
-    return Services(settings=settings, audit=audit, orchestrator=orchestrator, agent=agent)
+    return Services(
+        settings=settings,
+        audit=audit,
+        orchestrator=orchestrator,
+        agent=agent,
+        approvals=approvals,
+        scanner=scanner,
+    )
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -99,6 +123,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         yield
 
     app = FastAPI(title="Leash Gateway", version="0.1.0", lifespan=lifespan)
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["http://127.0.0.1:5173", "http://localhost:5173"],
+        allow_methods=["GET", "POST"],
+        allow_headers=["Content-Type"],
+    )
     app.state.services = services
 
     @app.get("/health", response_model=HealthResponse)
@@ -129,6 +159,67 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         valid, event_count = await services.audit.verify()
         return {"valid": valid, "event_count": event_count}
 
+    @app.get("/v1/audit/events", response_model=tuple[AuditRecord, ...])
+    async def audit_events(
+        limit: int = Query(default=100, ge=1, le=500),
+    ) -> tuple[AuditRecord, ...]:
+        return await services.audit.recent_events(limit)
+
+    @app.get("/v1/reviews", response_model=tuple[PendingReviewView, ...])
+    async def pending_reviews() -> tuple[PendingReviewView, ...]:
+        pending = await services.approvals.list_pending()
+        views: list[PendingReviewView] = []
+        for item in pending:
+            task_text, _ = services.scanner.scan_and_redact(
+                item.proposal.task_text,
+                "dashboard.task_text",
+            )
+            if resolved.leash_executor_mode == "mock":
+                can_approve = True
+                capability_note = "Mock execution is available for this development action."
+            elif item.proposal.kind.value in {"shell", "file_write"}:
+                can_approve = True
+                capability_note = "A local capability adapter is available for this action kind."
+            elif item.proposal.kind.value == "http":
+                raw_url = item.preview.normalized_action.get("url")
+                parsed = urlsplit(raw_url) if isinstance(raw_url, str) else None
+                host = (parsed.hostname or "").lower() if parsed is not None else ""
+                port = (
+                    parsed.port or (80 if parsed.scheme == "http" else 443)
+                    if parsed is not None
+                    else 0
+                )
+                can_approve = (
+                    parsed is not None
+                    and parsed.scheme == "http"
+                    and host in resolved.leash_allowed_http_hosts
+                    and port in resolved.leash_allowed_http_ports
+                )
+                capability_note = (
+                    "The inspected loopback HTTP adapter can execute this exact destination."
+                    if can_approve
+                    else "This destination is outside the inspected HTTP adapter allowlist."
+                )
+            else:
+                can_approve = False
+                capability_note = (
+                    "No real capability adapter exists for this action kind; denial remains "
+                    "available and approval fails closed."
+                )
+            views.append(
+                PendingReviewView(
+                    action_id=item.proposal.id,
+                    kind=item.proposal.kind,
+                    task_text=task_text,
+                    preview=item.preview,
+                    verdict=item.verdict,
+                    expires_at=item.expires_at,
+                    can_approve=can_approve,
+                    capability_note=capability_note,
+                )
+            )
+        return tuple(views)
+
     @app.post("/v1/actions/{action_id}/decision", response_model=ApprovalResult)
     async def decide(action_id: UUID, request: HumanDecisionRequest) -> ApprovalResult:
         try:
@@ -139,6 +230,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.get("/v1/actions/{action_id}/events")
     async def action_events(action_id: str) -> list[dict[str, object]]:
         return await services.audit.events_for_action(action_id)
+
+    dashboard_dist = Path(__file__).resolve().parents[2] / "apps" / "dashboard" / "dist"
+    if dashboard_dist.is_dir():
+        app.mount("/", StaticFiles(directory=dashboard_dist, html=True), name="dashboard")
 
     return app
 
