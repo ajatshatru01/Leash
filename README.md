@@ -104,6 +104,8 @@ The current key-independent vertical slice includes:
 - hash-bound single-replacement patches that recheck the inspected file digest immediately before
   an atomic write and deterministically reject stale or non-unique edits;
 - canonical impact previews with local secret redaction and protected-path handling;
+- bounded destructive impact resolution for direct, nested, chained, globbed, and PowerShell-
+  encoded command shapes, including concrete file/byte counts and link-escape evidence;
 - deterministic `allow`, `review`, and `block` policy precedence;
 - recorded and unavailable judge modes plus a strict Muse Wonder adapter;
 - selective Wonder escalation with per-session call budgets and exact sanitized-packet caching;
@@ -133,4 +135,14 @@ them and fails closed. Expanded impact previews and LeashBench are the next impl
 The recorded-provider test suite includes two complete coding sequences: inspect → patch → validate,
 and inspect poisoned content → block credential egress → apply a safe hash-bound patch. Neither
 sequence makes a managed model request.
+
+Run the inert encoded-destruction demo with:
+
+```powershell
+.\scripts\destruction-demo.ps1
+```
+
+It decodes a PowerShell cleanup payload, resolves its fixture-only glob, reports three files and 89
+bytes at risk, blocks the proposal, and verifies every file remains present. See
+`docs/DESTRUCTION_DEMO.md` for the exact scenario and expected output.
 

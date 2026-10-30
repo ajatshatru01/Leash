@@ -60,7 +60,10 @@ class ActionState(StrEnum):
 
 class ShellParams(StrictModel):
     executable: str = Field(min_length=1, max_length=260)
-    argv: tuple[str, ...] = Field(default_factory=tuple, max_length=128)
+    argv: tuple[Annotated[str, Field(max_length=16_384)], ...] = Field(
+        default_factory=tuple,
+        max_length=128,
+    )
     timeout_seconds: int = Field(default=30, ge=1, le=300)
 
 

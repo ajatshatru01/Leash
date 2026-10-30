@@ -63,7 +63,13 @@ def build_services(
     spark_client: SparkClient | None = None,
 ) -> Services:
     scanner = SecretScanner(settings.leash_redaction_key.get_secret_value())
-    preview = PreviewService(settings.leash_workspace_root, scanner)
+    preview = PreviewService(
+        settings.leash_workspace_root,
+        scanner,
+        max_targets=settings.leash_preview_max_targets,
+        max_preview_bytes=settings.leash_preview_max_bytes,
+        max_depth=settings.leash_preview_max_depth,
+    )
     policy = PolicyEngine(settings.leash_allowed_http_hosts)
     audit = AuditStore(settings.leash_database_path)
     approvals = approval_store or ApprovalStore(settings.leash_approval_ttl_seconds)

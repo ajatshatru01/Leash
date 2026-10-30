@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 from pathlib import Path
+from typing import cast
 from urllib.parse import urlsplit, urlunsplit
 
 from leash.contracts import (
@@ -15,6 +16,7 @@ from leash.contracts import (
 )
 from leash.digest import sha256_digest
 from leash.secrets import SecretScanner
+from leash.shell_preview import ShellImpactAnalyzer
 
 
 class PreviewError(ValueError):
@@ -22,9 +24,23 @@ class PreviewError(ValueError):
 
 
 class PreviewService:
-    def __init__(self, workspace_root: Path, scanner: SecretScanner) -> None:
+    def __init__(
+        self,
+        workspace_root: Path,
+        scanner: SecretScanner,
+        *,
+        max_targets: int = 200,
+        max_preview_bytes: int = 10_000_000,
+        max_depth: int = 8,
+    ) -> None:
         self._workspace_root = workspace_root.resolve()
         self._scanner = scanner
+        self._shell_analyzer = ShellImpactAnalyzer(
+            workspace_root=self._workspace_root,
+            max_targets=max_targets,
+            max_bytes=max_preview_bytes,
+            max_depth=max_depth,
+        )
 
     def _resolve_workspace_path(self, value: str) -> Path:
         candidate = (self._workspace_root / value).resolve()
@@ -42,6 +58,7 @@ class PreviewService:
         findings: list[SecretFinding] = []
         protected: list[str] = []
         uncertainty: list[str] = []
+        truncated = False
 
         if isinstance(proposal, FileWriteActionProposal):
             path = self._resolve_workspace_path(proposal.params.path)
@@ -164,16 +181,65 @@ class PreviewService:
                 )
                 redacted_argv.append(redacted)
                 findings.extend(argument_findings)
+            impact = self._shell_analyzer.analyze(
+                proposal.params.executable,
+                proposal.params.argv,
+                cwd,
+            )
+            analysis = dict(impact.analysis)
+            raw_patterns = analysis.get("target_patterns")
+            if isinstance(raw_patterns, list):
+                safe_patterns: list[str] = []
+                for index, pattern in enumerate(cast(list[object], raw_patterns)):
+                    if not isinstance(pattern, str):
+                        continue
+                    safe_pattern, pattern_findings = self._scanner.scan_and_redact(
+                        pattern,
+                        f"shell.analysis.target_patterns.{index}",
+                    )
+                    safe_patterns.append(safe_pattern)
+                    findings.extend(pattern_findings)
+                analysis["target_patterns"] = safe_patterns
+            if impact.decoded_command is not None:
+                decoded_preview, decoded_findings = self._scanner.scan_and_redact(
+                    impact.decoded_command[:4000],
+                    "shell.decoded_command",
+                )
+                findings.extend(decoded_findings)
+                analysis["decoded_command_preview"] = decoded_preview
             normalized = {
                 "kind": proposal.kind,
                 "executable": proposal.params.executable.lower(),
                 "argv": redacted_argv,
                 "cwd": str(cwd),
                 "timeout_seconds": proposal.params.timeout_seconds,
+                "analysis": analysis,
             }
-            targets = (str(cwd),)
-            if any(
-                token in {"-c", "-command", "-encodedcommand"} for token in proposal.params.argv
+            safe_targets: list[str] = []
+            for index, target in enumerate(impact.resolved_targets):
+                safe_target, target_findings = self._scanner.scan_and_redact(
+                    target,
+                    f"shell.resolved_targets.{index}",
+                )
+                safe_targets.append(safe_target)
+                findings.extend(target_findings)
+            has_destructive_analysis = analysis.get("destructive_operation") is not None
+            has_encoded_analysis = analysis.get("encoded") is True
+            targets = (
+                tuple(safe_targets)
+                if has_destructive_analysis or has_encoded_analysis
+                else tuple(safe_targets) or (str(cwd),)
+            )
+            affected_count = impact.affected_file_count
+            affected_bytes = impact.affected_bytes
+            protected.extend(impact.protected_resource_hits)
+            uncertainty.extend(impact.uncertainty_flags)
+            truncated = impact.truncated
+            if (
+                any(
+                    token in {"-c", "-command", "-encodedcommand"} for token in proposal.params.argv
+                )
+                and "nested_interpreter" not in uncertainty
             ):
                 uncertainty.append("nested_interpreter")
         else:
@@ -200,7 +266,7 @@ class PreviewService:
             "secret_findings": [item.model_dump(mode="json") for item in findings],
             "protected_resource_hits": tuple(protected),
             "uncertainty_flags": tuple(uncertainty),
-            "truncated": False,
+            "truncated": truncated,
         }
         return ImpactPreview(
             action_id=proposal.id,
@@ -213,6 +279,6 @@ class PreviewService:
             secret_findings=tuple(findings),
             protected_resource_hits=tuple(protected),
             uncertainty_flags=tuple(uncertainty),
-            truncated=False,
+            truncated=truncated,
             digest=sha256_digest(digest_payload),
         )

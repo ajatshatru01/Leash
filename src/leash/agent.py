@@ -445,8 +445,7 @@ class AgentRunner:
                 model=self._spark_model,
                 prompt_tokens=prompt_estimate,
                 completion_tokens=estimate_tokens(
-                    (turn.content or "")
-                    + "".join(call.arguments_json for call in turn.tool_calls)
+                    (turn.content or "") + "".join(call.arguments_json for call in turn.tool_calls)
                 ),
                 source="estimated",
                 input_cost_per_million_usd=None,
@@ -526,9 +525,7 @@ class AgentRunner:
                     try:
                         raw_arguments = json.loads(call.arguments_json)
                         if not isinstance(raw_arguments, dict):
-                            raise WorkspaceInspectionError(
-                                "Inspection arguments must be an object"
-                            )
+                            raise WorkspaceInspectionError("Inspection arguments must be an object")
                         inspection = await asyncio.to_thread(
                             self._workspace_inspector.inspect,
                             call.name,
@@ -930,6 +927,18 @@ class AgentRunner:
             "STALE_FILE_SNAPSHOT": "Inspect the file again and use its current SHA-256.",
             "PATCH_NOT_UNIQUE": "Choose old_text that appears exactly once in the inspected file.",
             "SECRET_PATCH_CONTENT": "Do not introduce credential-like material into the patch.",
+            "INDIRECT_DESTRUCTIVE_OPERATION": (
+                "Remove the encoded or nested delete and propose a minimal structured action."
+            ),
+            "DESTRUCTIVE_OPERATION": "Narrow the operation to one exact generated target.",
+            "DESTRUCTIVE_PREVIEW_TRUNCATED": (
+                "Reduce the target set until Leash can preview the complete impact."
+            ),
+            "TARGET_ESCAPE": "Keep every target and symbolic link inside the workspace.",
+            "OPAQUE_ENCODED_COMMAND": "Use transparent structured arguments instead of encoding.",
+            "UNSUPPORTED_SHELL_SYNTAX": (
+                "Avoid chains, substitutions, and dynamic expansion; propose one action."
+            ),
         }
         for code in reason_codes:
             constraint = mapping.get(code)

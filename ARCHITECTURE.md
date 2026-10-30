@@ -143,7 +143,19 @@ Transitions are append-only audit events. Approval expires and is valid for one 
 
 The normalizer converts typed proposal inputs into a canonical representation. It resolves the working directory, canonicalizes paths, classifies executables and shell features, and extracts nested interpreters or encoded payloads where supported.
 
+The demo shell analyzer recognizes a deliberately small destructive subset: direct `rm`, `del`,
+`erase`, `rmdir`, and `Remove-Item`; known `sh`/`cmd`/PowerShell command wrappers; PowerShell
+UTF-16LE base64 `-EncodedCommand`; and a few explicit Python deletion calls. It identifies chains,
+substitutions, and environment expansion but does not claim to interpret arbitrary programs.
+Known target patterns are expanded only relative to the canonical workspace. Directory traversal,
+absolute escapes, and escaping or unresolved links become blocking uncertainty.
+
 For the hackathon, support a constrained command grammar. Pipelines, command chaining, substitutions, inline interpreters, downloaded scripts, dynamic evaluation, and unknown binaries should become `review` or `block` unless a dedicated handler can preview them safely. Conservative uncertainty is more credible than claiming universal shell understanding.
+
+Destructive resolution is bounded by configured target count, bytes, and directory depth. A complete
+preview records the concrete fixture paths, file count, and bytes. A truncated destructive preview
+is a hard block rather than a partial impact claim. Exact single-file deletion remains human review;
+recursive, indirect, encoded, escaping, or incompletely previewed deletion is blocked.
 
 ### 5.4 Deterministic policy engine
 

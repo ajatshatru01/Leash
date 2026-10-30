@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import cast
 
 from leash.contracts import (
     ActionProposal,
@@ -116,14 +117,73 @@ class PolicyEngine:
         else:
             executable = Path(proposal.params.executable).name.lower()
             argv_lower = {item.lower() for item in proposal.params.argv}
-            if executable in {"rm", "del", "erase", "rmdir"} and (
-                "-rf" in argv_lower or "-r" in argv_lower or "/s" in argv_lower
-            ):
+            raw_analysis = preview.normalized_action.get("analysis")
+            analysis = (
+                cast(dict[str, object], raw_analysis) if isinstance(raw_analysis, dict) else {}
+            )
+            destructive = analysis.get("destructive_operation")
+            recursive = analysis.get("recursive") is True
+            indirect = "nested_interpreter" in preview.uncertainty_flags
+            encoded = analysis.get("encoded") is True
+            if isinstance(destructive, str) and (indirect or encoded):
+                add(
+                    "INDIRECT_DESTRUCTIVE_OPERATION",
+                    Decision.BLOCK,
+                    "A nested or encoded command resolves to a destructive operation.",
+                    "preview.normalized_action.analysis",
+                )
+            elif isinstance(destructive, str) and recursive:
                 add(
                     "RECURSIVE_DELETE",
                     Decision.BLOCK,
                     "Recursive deletion is blocked by deterministic policy.",
-                    "proposal.params.argv",
+                    "preview.normalized_action.analysis",
+                )
+            elif isinstance(destructive, str):
+                add(
+                    "DESTRUCTIVE_OPERATION",
+                    Decision.REVIEW,
+                    "A destructive operation requires an exact impact review.",
+                    "preview.resolved_targets",
+                )
+            if preview.truncated and isinstance(destructive, str):
+                add(
+                    "DESTRUCTIVE_PREVIEW_TRUNCATED",
+                    Decision.BLOCK,
+                    "The destructive impact preview exceeded configured bounds.",
+                    "preview.truncated",
+                )
+            if {
+                "target_escape",
+                "link_target_escape",
+                "link_target_unresolved",
+            }.intersection(preview.uncertainty_flags):
+                add(
+                    "TARGET_ESCAPE",
+                    Decision.BLOCK,
+                    "A resolved target or symbolic link escapes the workspace boundary.",
+                    "preview.uncertainty_flags",
+                )
+            if {
+                "encoded_command_invalid",
+                "encoded_command_oversized",
+            }.intersection(preview.uncertainty_flags):
+                add(
+                    "OPAQUE_ENCODED_COMMAND",
+                    Decision.BLOCK,
+                    "The encoded command could not be safely decoded and bounded.",
+                    "preview.uncertainty_flags",
+                )
+            if {
+                "command_chain",
+                "command_substitution",
+                "environment_expansion",
+            }.intersection(preview.uncertainty_flags):
+                add(
+                    "UNSUPPORTED_SHELL_SYNTAX",
+                    Decision.REVIEW,
+                    "Dynamic or chained shell syntax requires conservative review.",
+                    "preview.uncertainty_flags",
                 )
             if (
                 executable == "git"

@@ -253,6 +253,12 @@ denial; constrained Python `unittest`/`compileall` validation shapes; and record
 repository sequences. Managed Spark validation remains deliberately deferred to the controlled live
 integration milestone.
 
+The deep-impact milestone is implemented for the demoed destructive subset: workspace-relative glob
+expansion; recursive file and byte totals; protected-target and symlink-escape detection; bounded
+preview truncation; PowerShell encoded-command decoding; nested/chained/substitution classification;
+deterministic block/review semantics; and a reproducible inert encoded-delete demo. Arbitrary shell
+interpretation and real delete execution remain explicitly out of scope.
+
 Cost estimates are emitted only when explicit current pricing inputs are configured. Unpriced calls
 remain visible instead of being misleadingly reported as free.
 

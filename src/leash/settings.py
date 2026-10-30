@@ -31,6 +31,9 @@ class Settings(BaseSettings):
     leash_inspection_max_files: int = Field(default=200, ge=10, le=2000)
     leash_inspection_max_lines: int = Field(default=400, ge=10, le=4000)
     leash_inspection_max_depth: int = Field(default=8, ge=1, le=32)
+    leash_preview_max_targets: int = Field(default=200, ge=10, le=5000)
+    leash_preview_max_bytes: int = Field(default=10_000_000, ge=65_536, le=1_000_000_000)
+    leash_preview_max_depth: int = Field(default=8, ge=1, le=64)
     leash_spark_reasoning_effort: Literal["low", "medium", "high"] = "low"
     leash_spark_max_completion_tokens: int = Field(default=4096, ge=256, le=32_768)
     leash_spark_input_cost_per_million_usd: float | None = Field(default=None, ge=0)

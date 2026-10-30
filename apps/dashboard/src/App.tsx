@@ -135,6 +135,35 @@ function PreviewFacts({ preview }: { preview: ImpactPreview }) {
   );
 }
 
+function ShellAnalysis({ preview }: { preview: ImpactPreview }) {
+  const value = preview.normalized_action.analysis;
+  if (!isObject(value)) return null;
+  const decoded = typeof value.decoded_command_preview === "string"
+    ? value.decoded_command_preview
+    : null;
+  const operation = typeof value.destructive_operation === "string"
+    ? value.destructive_operation
+    : null;
+  const patterns = Array.isArray(value.target_patterns)
+    ? value.target_patterns.filter((item): item is string => typeof item === "string")
+    : [];
+  const syntaxFlags = Array.isArray(value.syntax_flags)
+    ? value.syntax_flags.filter((item): item is string => typeof item === "string")
+    : [];
+  if (!decoded && !operation && patterns.length === 0 && syntaxFlags.length === 0) return null;
+  return (
+    <section className="detail-section">
+      <div className="section-heading"><span>Shell analysis</span><small>decoded locally</small></div>
+      <div className="analysis-grid mono">
+        {decoded && <div><span>Decoded command</span><code>{decoded}</code></div>}
+        {operation && <div><span>Resolved operation</span><code>{operation}</code></div>}
+        {patterns.length > 0 && <div><span>Target patterns</span><code>{patterns.join(", ")}</code></div>}
+        {syntaxFlags.length > 0 && <div><span>Syntax flags</span><code>{syntaxFlags.join(", ")}</code></div>}
+      </div>
+    </section>
+  );
+}
+
 function Evidence({ preview, verdict }: { preview: ImpactPreview; verdict: Verdict | null }) {
   const items = [
     ...preview.secret_findings.map((finding) => ({
@@ -356,6 +385,7 @@ export default function App() {
             {displayPreview ? (
               <>
                 <PreviewFacts preview={displayPreview} />
+                <ShellAnalysis preview={displayPreview} />
                 <section className="detail-section">
                   <div className="section-heading"><span>Resolved targets</span><small>read-only preview</small></div>
                   <div className="target-list mono">
