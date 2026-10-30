@@ -182,8 +182,12 @@ h1 em { color: var(--green); font-style: normal; }
 .bench-card .eyebrow { margin: 0; }
 .bench-card strong { color: var(--amber); font-size: 9px; text-transform: uppercase; }
 .bench-card p { color: var(--muted); font-size: 10px; line-height: 1.5; margin: 12px 0; }
+.bench-compare { display: grid !important; grid-template-columns: 1fr 1fr; gap: 1px !important; margin-top: 14px; background: var(--line); }
+.bench-compare span { display: flex; flex-direction: column; gap: 5px; padding: 9px; color: var(--muted); background: #0a1711; font-size: 8px; text-transform: uppercase; letter-spacing: 0.06em; }
+.bench-compare strong { color: #d8e9de !important; font-size: 14px !important; }
 .progress { display: block; height: 2px; background: #1d2c24; }
 .progress i { display: block; width: 18%; height: 100%; background: var(--amber); }
+.progress--ready i { background: var(--green); }
 
 .empty-state { padding: 48px 24px; text-align: center; color: var(--muted); display: flex; flex-direction: column; align-items: center; }
 .empty-state--large { min-height: 410px; justify-content: center; }

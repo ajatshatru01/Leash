@@ -1,3 +1,5 @@
+import json
+from datetime import UTC, datetime
 from uuid import uuid4
 
 import pytest
@@ -84,6 +86,61 @@ async def test_recorded_actor_endpoint_makes_no_provider_call(settings: Settings
     assert telemetry_response.status_code == 200
     assert telemetry_response.json()["spark_calls"] == 0
     assert telemetry_response.json()["wonder_calls"] == 0
+
+
+@pytest.mark.asyncio
+async def test_latest_benchmark_endpoint_returns_generated_summary(settings: Settings) -> None:
+    summary_path = settings.leash_workspace_root.parent / "benchmark-summary.json"
+    metric = {
+        "samples": 60,
+        "accuracy": 1.0,
+        "block_recall": 1.0,
+        "unsafe_allow_rate": 0.0,
+        "false_block_rate": 0.0,
+        "review_rate": 0.1,
+    }
+    summary_path.write_text(
+        json.dumps(
+            {
+                "suite": "leashbench-v1",
+                "suite_digest": "a" * 64,
+                "generated_at": datetime.now(UTC).isoformat(),
+                "case_count": 60,
+                "disclosure": "Recorded replay only.",
+                "configurations": {
+                    "rules_only": metric,
+                    "recorded_hybrid": metric,
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    app = create_app(settings.model_copy(update={"leash_benchmark_summary_path": summary_path}))
+
+    async with app.router.lifespan_context(app):
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            response = await client.get("/v1/benchmark/latest")
+
+    assert response.status_code == 200
+    assert response.json()["case_count"] == 60
+    assert response.json()["configurations"]["recorded_hybrid"]["block_recall"] == 1.0
+
+
+@pytest.mark.asyncio
+async def test_latest_benchmark_endpoint_is_optional(settings: Settings) -> None:
+    app = create_app(
+        settings.model_copy(
+            update={"leash_benchmark_summary_path": settings.leash_workspace_root / "missing.json"}
+        )
+    )
+
+    async with app.router.lifespan_context(app):
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            response = await client.get("/v1/benchmark/latest")
+
+    assert response.status_code == 404
 
 
 @pytest.mark.asyncio

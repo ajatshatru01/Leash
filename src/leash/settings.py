@@ -21,6 +21,7 @@ class Settings(BaseSettings):
     leash_port: int = Field(default=8765, ge=1, le=65535)
     leash_log_level: str = "INFO"
     leash_database_path: Path = Path("data/leash.sqlite3")
+    leash_benchmark_summary_path: Path = Path("bench/reports/leashbench-v1-summary.json")
     leash_workspace_root: Path = Path("demo/workspace")
     leash_actor_mode: Literal["managed", "recorded", "unavailable"] = "recorded"
     leash_agent_max_steps: int = Field(default=8, ge=1, le=32)

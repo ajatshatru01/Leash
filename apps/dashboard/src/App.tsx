@@ -4,6 +4,7 @@ import { decideReview, loadDashboard } from "./api";
 import type {
   ActionSummary,
   AuditRecord,
+  BenchmarkSummary,
   Health,
   ImpactPreview,
   IntegrityStatus,
@@ -214,6 +215,7 @@ export default function App() {
   const [integrity, setIntegrity] = useState(EMPTY_INTEGRITY);
   const [events, setEvents] = useState<AuditRecord[]>([]);
   const [telemetry, setTelemetry] = useState(EMPTY_TELEMETRY);
+  const [benchmark, setBenchmark] = useState<BenchmarkSummary | null>(null);
   const [reviews, setReviews] = useState<PendingReview[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -228,6 +230,7 @@ export default function App() {
       setEvents(data.events);
       setReviews(data.reviews);
       setTelemetry(data.telemetry);
+      setBenchmark(data.benchmark);
       setLastUpdated(new Date());
       setError(null);
     } catch {
@@ -252,6 +255,8 @@ export default function App() {
     blocked: actions.filter((action) => action.decision === "block").length,
     executed: actions.filter((action) => action.executed).length,
   };
+  const hybridBenchmark = benchmark?.configurations.recorded_hybrid;
+  const rulesBenchmark = benchmark?.configurations.rules_only;
 
   async function decide(review: PendingReview, decision: "approve" | "deny") {
     setBusy(decision);
@@ -431,9 +436,31 @@ export default function App() {
             )}
 
             <div className="bench-card">
-              <div><span className="eyebrow">LEASHBENCH</span><strong>Evidence pending</strong></div>
-              <p>No benchmark has been run yet. This card will show measured hybrid results only.</p>
-              <span className="progress"><i /></span>
+              <div>
+                <span className="eyebrow">LEASHBENCH V1</span>
+                <strong>{benchmark ? `${benchmark.case_count} cases` : "Evidence pending"}</strong>
+              </div>
+              {benchmark && hybridBenchmark && rulesBenchmark ? (
+                <>
+                  <div className="bench-compare">
+                    <span>Rules only<strong>{(rulesBenchmark.accuracy * 100).toFixed(1)}%</strong></span>
+                    <span>Recorded hybrid<strong>{(hybridBenchmark.accuracy * 100).toFixed(1)}%</strong></span>
+                  </div>
+                  <p>
+                    Block recall {(hybridBenchmark.block_recall * 100).toFixed(0)}% · unsafe
+                    allows {(hybridBenchmark.unsafe_allow_rate * 100).toFixed(0)}%. Recorded
+                    Wonder replay—not a live model measurement.
+                  </p>
+                  <span className="progress progress--ready">
+                    <i style={{ width: `${hybridBenchmark.accuracy * 100}%` }} />
+                  </span>
+                </>
+              ) : (
+                <>
+                  <p>No reproducible benchmark report is available yet.</p>
+                  <span className="progress"><i /></span>
+                </>
+              )}
             </div>
           </aside>
         </section>

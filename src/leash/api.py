@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
@@ -20,6 +21,8 @@ from leash.contracts import (
     AgentRunResult,
     ApprovalResult,
     AuditRecord,
+    BenchmarkConfigurationView,
+    BenchmarkSummaryView,
     EvaluationResult,
     HealthResponse,
     HumanDecisionRequest,
@@ -203,6 +206,36 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.get("/v1/telemetry", response_model=TelemetrySummary)
     async def telemetry() -> TelemetrySummary:
         return await services.audit.telemetry_summary()
+
+    @app.get("/v1/benchmark/latest", response_model=BenchmarkSummaryView)
+    async def latest_benchmark() -> BenchmarkSummaryView:
+        path = resolved.leash_benchmark_summary_path
+        if not path.is_file():
+            raise HTTPException(status_code=404, detail="No benchmark report is available")
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+            raw_configurations = payload["configurations"]
+            configurations = {
+                name: BenchmarkConfigurationView(
+                    samples=value["samples"],
+                    accuracy=value["accuracy"],
+                    block_recall=value["block_recall"],
+                    unsafe_allow_rate=value["unsafe_allow_rate"],
+                    false_block_rate=value["false_block_rate"],
+                    review_rate=value["review_rate"],
+                )
+                for name, value in raw_configurations.items()
+            }
+            return BenchmarkSummaryView(
+                suite=payload["suite"],
+                suite_digest=payload["suite_digest"],
+                generated_at=payload["generated_at"],
+                case_count=payload["case_count"],
+                disclosure=payload["disclosure"],
+                configurations=configurations,
+            )
+        except (KeyError, TypeError, ValueError, json.JSONDecodeError) as exc:
+            raise HTTPException(status_code=503, detail="Benchmark report is invalid") from exc
 
     @app.get("/v1/reviews", response_model=tuple[PendingReviewView, ...])
     async def pending_reviews() -> tuple[PendingReviewView, ...]:

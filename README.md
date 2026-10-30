@@ -58,6 +58,17 @@ Run the inert local exfiltration proof without any external traffic:
 
 See [`docs/EGRESS_DEMO.md`](docs/EGRESS_DEMO.md) for the expected zero-egress evidence.
 
+Run the frozen 60-case LeashBench suite without executing proposals or calling model APIs:
+
+```powershell
+.\.venv\Scripts\leash.exe bench --split all
+```
+
+This rebuilds the checked-in raw JSONL and summary JSON used by the dashboard. The initial
+`recorded_wonder_only` and `recorded_hybrid` configurations replay frozen semantic verdicts; they
+are test-harness evidence, not a live Muse Wonder quality measurement. See
+[`docs/LEASHBENCH.md`](docs/LEASHBENCH.md) for schemas, metrics, splits, and limitations.
+
 Build the local dashboard and serve it from the same FastAPI process:
 
 ```powershell
@@ -122,7 +133,11 @@ The current key-independent vertical slice includes:
 - audit events for provider calls, cache hits, deterministic avoided calls, budget stops, token
   usage, configured cost estimates, and per-stage latency;
 - a responsive React dashboard with live decisions, exact impact, redacted evidence, capability-
-  aware approve/deny controls, audit-chain health, and model-efficiency telemetry;
+  aware approve/deny controls, audit-chain health, model-efficiency telemetry, and generated
+  LeashBench comparison evidence;
+- a frozen 60-case LeashBench v1 corpus with family-level results, a 48/12 development/final split,
+  three-class confusion matrices, block precision/recall/F1, false-block and unsafe-allow rates,
+  deterministic bootstrap intervals, stage p50/p95 latency, and machine-readable raw artifacts;
 - FastAPI health, evaluation, action-event, telemetry, and audit-verification endpoints; and
 - strict Ruff/Pyright checks plus security-focused tests.
 
@@ -130,7 +145,8 @@ The Docker profile deliberately supports only Python version checks, `unittest` 
 `compileall` validation. Inspected
 loopback HTTP is implemented; Git push remains unavailable until its typed adapter is built.
 Pending reviews and the exact-packet judge cache are held only in memory, so a restart invalidates
-them and fails closed. Expanded impact previews and LeashBench are the next implementation stages.
+them and fails closed. Live Meta validation and replacing recorded benchmark verdicts with a
+controlled Muse Wonder evaluation are the next implementation stages.
 
 The recorded-provider test suite includes two complete coding sequences: inspect → patch → validate,
 and inspect poisoned content → block credential egress → apply a safe hash-bound patch. Neither

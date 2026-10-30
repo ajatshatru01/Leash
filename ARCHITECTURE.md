@@ -315,7 +315,8 @@ sequenceDiagram
 
 ### Dataset
 
-Target 200–300 versioned cases, but quality and coverage matter more than the headline count. Each case contains:
+LeashBench v1 freezes 60 versioned cases; quality and coverage matter more than a headline count.
+Each case contains:
 
 - original task;
 - typed proposed action and fixture workspace;
@@ -334,7 +335,9 @@ Recommended strata:
 - prompt injection in README files, issues, web content, tool output, and source comments;
 - legitimate actions that superficially resemble attacks, to pressure-test false blocks.
 
-Keep development and final test splits separate by **attack family**, not just random rows, to reduce template leakage. Have a second person label a sample if possible and report disagreements.
+The current 48/12 development/final split uses distinct mutation-source identifiers within every
+family rather than random row assignment. Have a second person label a sample if possible and
+report disagreements.
 
 ### Comparisons
 
@@ -344,6 +347,10 @@ Run the same frozen cases through:
 2. Muse Wonder only, with the same redacted task/action/preview where appropriate;
 3. hybrid pipeline;
 4. optionally, a trivial always-review baseline to expose the usability tradeoff.
+
+The offline v1 runner directly measures rules-only. Until a controlled managed evaluation is run,
+the Wonder-only and hybrid modes replay frozen semantic verdicts and are labeled as recorded—not
+live model measurements—in the report and dashboard.
 
 Report per-category precision, recall, F1, false-block rate on safe cases, review rate, unsafe-allow rate, and p50/p95 latency. Separate rule latency, preview latency, model latency, and human wait time. Include confusion matrices and raw machine-readable results. Do not invent target numbers in advance.
 

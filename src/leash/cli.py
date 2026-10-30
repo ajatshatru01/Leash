@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import base64
 from pathlib import Path
+from typing import Annotated, Literal, cast
 from uuid import uuid4
 
 import typer
@@ -85,6 +86,44 @@ def secret_audit() -> None:
         f"secret_audit=passed scanned_files={result.scanned_files} "
         f"skipped_files={result.skipped_files}"
     )
+
+
+@app.command("bench")
+def bench(
+    cases_dir: Annotated[Path, typer.Option(help="Frozen benchmark cases.")] = Path("bench/cases"),
+    reports_dir: Annotated[Path, typer.Option(help="Generated report output.")] = Path(
+        "bench/reports"
+    ),
+    split: Annotated[str, typer.Option(help="all, development, or final")] = "all",
+) -> None:
+    """Run LeashBench without executing actions or calling model APIs."""
+    from leash.benchmark import BenchmarkRunner, load_cases, write_report
+
+    if split not in {"all", "development", "final"}:
+        typer.echo("benchmark=failed reason=invalid_split", err=True)
+        raise typer.Exit(code=2)
+    try:
+        cases = load_cases(cases_dir)
+        runner = BenchmarkRunner()
+        rows = runner.run(
+            cases,
+            split=cast(Literal["all", "development", "final"], split),
+        )
+        artifacts = write_report(
+            cases=cases,
+            rows=rows,
+            reports_dir=reports_dir,
+            split=split,
+        )
+    except Exception as exc:
+        typer.echo(f"benchmark=failed error_type={type(exc).__name__}", err=True)
+        raise typer.Exit(code=1) from None
+    typer.echo(
+        f"benchmark=passed cases={artifacts.case_count} rows={artifacts.row_count} "
+        f"suite_digest={artifacts.suite_digest}"
+    )
+    typer.echo(f"raw_results={artifacts.raw_results}")
+    typer.echo(f"summary={artifacts.summary}")
 
 
 @app.command("destruction-demo")

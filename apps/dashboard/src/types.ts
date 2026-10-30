@@ -94,6 +94,24 @@ export interface TelemetrySummary {
   stage_latency: Record<string, LatencySummary>;
 }
 
+export interface BenchmarkConfiguration {
+  samples: number;
+  accuracy: number;
+  block_recall: number;
+  unsafe_allow_rate: number;
+  false_block_rate: number;
+  review_rate: number;
+}
+
+export interface BenchmarkSummary {
+  suite: string;
+  suite_digest: string;
+  generated_at: string;
+  case_count: number;
+  disclosure: string;
+  configurations: Record<string, BenchmarkConfiguration>;
+}
+
 export interface ActionSummary {
   actionId: string;
   latestSequence: number;

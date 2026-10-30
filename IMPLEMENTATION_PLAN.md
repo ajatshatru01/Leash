@@ -259,6 +259,14 @@ preview truncation; PowerShell encoded-command decoding; nested/chained/substitu
 deterministic block/review semantics; and a reproducible inert encoded-delete demo. Arbitrary shell
 interpretation and real delete execution remain explicitly out of scope.
 
+LeashBench v1 is implemented offline with 60 frozen cases across the planned six families, a
+48-case development split and 12-case held-out final split, disposable fixture workspaces, and a
+runner that never executes proposals. It emits raw JSONL plus a reproducible summary containing
+three-class confusion matrices, accuracy, block precision/recall/F1, macro F1, false-block,
+unsafe-allow and review rates, deterministic bootstrap confidence intervals, and preview/policy
+p50/p95 latency. Rules-only is measured directly. The initial Wonder-only and hybrid comparisons
+are explicitly labeled frozen recorded replays until a controlled live evaluation is authorized.
+
 Cost estimates are emitted only when explicit current pricing inputs are configured. Unpriced calls
 remain visible instead of being misleadingly reported as free.
 

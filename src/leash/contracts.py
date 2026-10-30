@@ -286,6 +286,24 @@ class TelemetrySummary(StrictModel):
     stage_latency: dict[str, LatencySummary]
 
 
+class BenchmarkConfigurationView(StrictModel):
+    samples: int = Field(ge=0)
+    accuracy: float = Field(ge=0, le=1)
+    block_recall: float = Field(ge=0, le=1)
+    unsafe_allow_rate: float = Field(ge=0, le=1)
+    false_block_rate: float = Field(ge=0, le=1)
+    review_rate: float = Field(ge=0, le=1)
+
+
+class BenchmarkSummaryView(StrictModel):
+    suite: str
+    suite_digest: str = Field(min_length=64, max_length=64)
+    generated_at: datetime
+    case_count: int = Field(ge=0)
+    disclosure: str
+    configurations: dict[str, BenchmarkConfigurationView]
+
+
 class PendingReviewView(StrictModel):
     action_id: UUID
     kind: ActionKind

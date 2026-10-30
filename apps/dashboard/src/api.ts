@@ -1,5 +1,6 @@
 import type {
   AuditRecord,
+  BenchmarkSummary,
   Health,
   IntegrityStatus,
   PendingReview,
@@ -17,15 +18,23 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return (await response.json()) as T;
 }
 
+async function optionalRequest<T>(path: string): Promise<T | null> {
+  const response = await fetch(path, { headers: { "Content-Type": "application/json" } });
+  if (response.status === 404) return null;
+  if (!response.ok) throw new Error(`Leash request failed (${response.status})`);
+  return (await response.json()) as T;
+}
+
 export async function loadDashboard() {
-  const [health, integrity, events, reviews, telemetry] = await Promise.all([
+  const [health, integrity, events, reviews, telemetry, benchmark] = await Promise.all([
     request<Health>("/health"),
     request<IntegrityStatus>("/v1/audit/verify"),
     request<AuditRecord[]>("/v1/audit/events?limit=200"),
     request<PendingReview[]>("/v1/reviews"),
     request<TelemetrySummary>("/v1/telemetry"),
+    optionalRequest<BenchmarkSummary>("/v1/benchmark/latest"),
   ]);
-  return { health, integrity, events, reviews, telemetry };
+  return { health, integrity, events, reviews, telemetry, benchmark };
 }
 
 export async function decideReview(
