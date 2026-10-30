@@ -69,6 +69,17 @@ class SemanticJudgeRuntime:
                 "model": self._model,
                 "prompt_version": self._prompt_version,
                 "policy_version": self._policy_version,
+                "local_judgment_input": {
+                    "normalized_action": preview.normalized_action,
+                    "resolved_targets": preview.resolved_targets,
+                    "affected_file_count": preview.affected_file_count,
+                    "affected_bytes": preview.affected_bytes,
+                    "network_destination": preview.network_destination,
+                    "secret_findings": preview.secret_findings,
+                    "protected_resource_hits": preview.protected_resource_hits,
+                    "uncertainty_flags": preview.uncertainty_flags,
+                    "truncated": preview.truncated,
+                },
                 "packet": packet,
             }
         )

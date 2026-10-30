@@ -106,9 +106,8 @@ class WorkspaceInspector:
         lines = decoded.splitlines(keepends=True)
         selected = "".join(lines[start_line - 1 : start_line - 1 + line_limit])
         selected_bytes = selected.encode("utf-8")
-        truncated = (
-            len(selected_bytes) > self._max_bytes
-            or start_line - 1 + line_limit < len(lines)
+        truncated = len(selected_bytes) > self._max_bytes or start_line - 1 + line_limit < len(
+            lines
         )
         if len(selected_bytes) > self._max_bytes:
             selected = selected_bytes[: self._max_bytes].decode("utf-8", errors="ignore")
@@ -166,10 +165,7 @@ class WorkspaceInspector:
         if not base.is_dir():
             raise WorkspaceInspectionError("Workspace listing requires a directory")
         files, truncated = self._walk(base)
-        entries = [
-            {"path": self._relative(path), "bytes": path.stat().st_size}
-            for path in files
-        ]
+        entries = [{"path": self._relative(path), "bytes": path.stat().st_size} for path in files]
         return WorkspaceInspectionResult(
             kind="list",
             summary=f"Listed {len(entries)} bounded workspace file entries.",

@@ -267,6 +267,13 @@ unsafe-allow and review rates, deterministic bootstrap confidence intervals, and
 p50/p95 latency. Rules-only is measured directly. The initial Wonder-only and hybrid comparisons
 are explicitly labeled frozen recorded replays until a controlled live evaluation is authorized.
 
+The controlled Meta-integration harness is implemented offline: the Spark probe requires one real
+typed proposal tool call but never executes it; the Wonder probe requires a strict schema, retries
+invalid output once, and sends a minimized packet without raw HTTP bodies or absolute local paths.
+The command requires explicit `--confirm-spend`, caps a run at three provider requests, and writes a
+sanitized local artifact. On October 30, the live probe validated `muse-spark-1.3` tool calling and
+`muse-wonder-1.0` structured judgment. Sanitized evidence is checked in under `docs/evidence/`.
+
 Cost estimates are emitted only when explicit current pricing inputs are configured. Unpriced calls
 remain visible instead of being misleadingly reported as free.
 

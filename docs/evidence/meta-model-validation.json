@@ -1,0 +1,44 @@
+{
+  "schema_version": "1",
+  "validated_at": "2026-10-30T16:17:14.759598+00:00",
+  "status": "passed",
+  "session_provider_requests": 3,
+  "attempts": [
+    {
+      "role": "actor",
+      "status": "contract_corrected",
+      "requests": 1,
+      "detail": "Meta rejected a named tool_choice with HTTP 400; no Wonder call was made. The probe was corrected to Meta's documented auto-only tool choice."
+    },
+    {
+      "role": "actor",
+      "status": "passed",
+      "model": "muse-spark-1.3",
+      "requests": 1,
+      "latency_ms": 4498,
+      "prompt_tokens": 625,
+      "completion_tokens": 160,
+      "total_tokens": 785,
+      "detail": "proposal_tool_call_valid_not_executed"
+    },
+    {
+      "role": "judge",
+      "status": "passed",
+      "model": "muse-wonder-1.0",
+      "requests": 1,
+      "latency_ms": 6822,
+      "prompt_tokens": 190,
+      "completion_tokens": 373,
+      "total_tokens": 563,
+      "detail": "schema_valid_decision=allow"
+    }
+  ],
+  "privacy": {
+    "api_key_recorded": false,
+    "prompts_recorded": false,
+    "responses_recorded": false,
+    "task_or_file_content_recorded": false
+  },
+  "source_artifact": "data/meta-model-validation.json",
+  "source_artifact_tracked": false
+}

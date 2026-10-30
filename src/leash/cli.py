@@ -9,7 +9,7 @@ from uuid import uuid4
 import typer
 import uvicorn
 
-from leash.provider_check import check_meta_models
+from leash.provider_check import check_meta_models, write_model_check_report
 from leash.secret_audit import audit_exact_secret
 from leash.settings import get_settings
 
@@ -44,14 +44,48 @@ def config_status() -> None:
 
 
 @app.command("check-models")
-def check_models() -> None:
-    """Verify Spark and Wonder access without printing prompts, responses, or keys."""
+def check_models(
+    confirm_spend: Annotated[
+        bool,
+        typer.Option(
+            "--confirm-spend",
+            help="Authorize at most three Meta Model API requests for this one probe.",
+        ),
+    ] = False,
+    output: Annotated[
+        Path,
+        typer.Option(help="Sanitized local validation artifact."),
+    ] = Path("data/meta-model-validation.json"),
+    max_provider_requests: Annotated[
+        int,
+        typer.Option(
+            min=2,
+            max=3,
+            help="Hard cap: Spark once plus Wonder once or with one schema retry.",
+        ),
+    ] = 3,
+) -> None:
+    """Verify Spark tool calling and Wonder schema output with a strict request cap."""
     settings = get_settings()
+    if not confirm_spend:
+        typer.echo(
+            "model_check=not_run reason=spend_confirmation_required "
+            f"maximum_provider_requests={max_provider_requests}"
+        )
+        typer.echo("rerun_with=--confirm-spend")
+        raise typer.Exit(code=2)
     if not settings.model_api_key_configured:
         typer.echo("model_check=failed reason=MODEL_API_KEY_not_configured", err=True)
         raise typer.Exit(code=1)
     try:
-        results = asyncio.run(check_meta_models(settings))
+        results = asyncio.run(
+            check_meta_models(settings, max_provider_requests=max_provider_requests)
+        )
+        report_path = write_model_check_report(
+            results,
+            output,
+            maximum_provider_requests=max_provider_requests,
+        )
     except Exception as exc:
         status_code = getattr(exc, "status_code", "unavailable")
         typer.echo(
@@ -62,8 +96,13 @@ def check_models() -> None:
     for result in results:
         typer.echo(
             f"role={result.role} model={result.model} status=ok "
-            f"latency_ms={result.latency_ms} detail={result.detail}"
+            f"latency_ms={result.latency_ms} requests={result.request_count} "
+            f"tokens={result.total_tokens} detail={result.detail}"
         )
+    typer.echo(
+        f"model_check=passed actual_provider_requests="
+        f"{sum(result.request_count for result in results)} report={report_path}"
+    )
 
 
 @app.command("secret-audit")

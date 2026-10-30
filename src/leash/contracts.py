@@ -195,6 +195,7 @@ class ModelUsage(StrictModel):
 class JudgeCallResult(StrictModel):
     verdict: JudgeVerdict
     usage: ModelUsage
+    request_count: int = Field(default=1, ge=0, le=2)
 
 
 class Verdict(StrictModel):

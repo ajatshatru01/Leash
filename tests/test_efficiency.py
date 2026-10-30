@@ -89,11 +89,7 @@ def _history_text(history: tuple[ActorMessage, ...]) -> str:
     return "\n".join(
         [
             *(message.content or "" for message in history),
-            *(
-                call.arguments_json
-                for message in history
-                for call in message.tool_calls
-            ),
+            *(call.arguments_json for message in history for call in message.tool_calls),
         ]
     )
 
@@ -241,12 +237,8 @@ async def test_actor_compacts_old_receipts_deterministically(settings: Settings)
     settings.leash_agent_recent_receipts = 1
     client = ScriptedSparkClient(
         turns=[
-            ActorTurn(
-                tool_calls=(ActorToolCall("one", "unknown_tool", json.dumps({"x": 1})),)
-            ),
-            ActorTurn(
-                tool_calls=(ActorToolCall("two", "unknown_tool", json.dumps({"x": 2})),)
-            ),
+            ActorTurn(tool_calls=(ActorToolCall("one", "unknown_tool", json.dumps({"x": 1})),)),
+            ActorTurn(tool_calls=(ActorToolCall("two", "unknown_tool", json.dumps({"x": 2})),)),
             ActorTurn(content="Stopped after two rejected proposals."),
         ]
     )

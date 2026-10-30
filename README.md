@@ -7,7 +7,9 @@ The project is being built for the Meta Global AI Developer Hackathon. See:
 - [`hackathoninfo.md`](hackathoninfo.md) for competition requirements;
 - [`ARCHITECTURE.md`](ARCHITECTURE.md) for threat model and system design;
 - [`IMPLEMENTATION_PLAN.md`](IMPLEMENTATION_PLAN.md) for milestones and stack;
-- [`AGENTS.md`](AGENTS.md) for contributor constraints.
+- [`AGENTS.md`](AGENTS.md) for contributor constraints;
+- [`docs/PROJECT_AUDIT.md`](docs/PROJECT_AUDIT.md) for evidence-backed status and gaps;
+- [`docs/THIRD_PARTY_NOTICES.md`](docs/THIRD_PARTY_NOTICES.md) for dependency provenance.
 
 ## Local configuration
 
@@ -28,8 +30,17 @@ Check key presence without printing either value:
 Verify live access to both Meta models without printing prompts, responses, or keys:
 
 ```powershell
-.\.venv\Scripts\leash.exe check-models
+.\.venv\Scripts\leash.exe check-models --confirm-spend
 ```
+
+The command is inert until `--confirm-spend` is supplied. One run makes one Spark request and one
+Wonder request, with at most one additional Wonder retry after invalid schema output. It never
+executes Spark's fixture proposal and writes only model IDs, request/token counts, schema status,
+and latency to ignored `data/meta-model-validation.json`.
+
+The sanitized October 30 validation evidence is checked in at
+[`docs/evidence/meta-model-validation.json`](docs/evidence/meta-model-validation.json). It contains
+no API key, prompts, model responses, task text, or workspace content.
 
 Verify that the configured key has not escaped ignored secret files:
 

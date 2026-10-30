@@ -172,9 +172,7 @@ class AuditStore:
                         prompt_value = typed_usage.get("prompt_tokens", 0)
                         completion_value = typed_usage.get("completion_tokens", 0)
                         total_value = typed_usage.get("total_tokens", 0)
-                        prompt_tokens += (
-                            int(prompt_value) if isinstance(prompt_value, int) else 0
-                        )
+                        prompt_tokens += int(prompt_value) if isinstance(prompt_value, int) else 0
                         completion_tokens += (
                             int(completion_value) if isinstance(completion_value, int) else 0
                         )
