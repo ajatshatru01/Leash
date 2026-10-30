@@ -32,6 +32,7 @@ demo/workspace/
 demo/poisoned-readme/credentials.fixture
 bench/reports/*.jsonl
 !bench/reports/leashbench-v1-results.jsonl
+!bench/reports/leashbench-v1-managed-sample-results.jsonl
 bench/reports/*.sqlite3
 
 # Editors and OS

@@ -216,10 +216,13 @@ export default function App() {
   const [events, setEvents] = useState<AuditRecord[]>([]);
   const [telemetry, setTelemetry] = useState(EMPTY_TELEMETRY);
   const [benchmark, setBenchmark] = useState<BenchmarkSummary | null>(null);
+  const [managedBenchmark, setManagedBenchmark] = useState<BenchmarkSummary | null>(null);
   const [reviews, setReviews] = useState<PendingReview[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  const [confirmation, setConfirmation] = useState<{ review: PendingReview; decision: "approve" | "deny" } | null>(null);
+  const [now, setNow] = useState(Date.now());
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
   const refresh = useCallback(async () => {
@@ -231,6 +234,7 @@ export default function App() {
       setReviews(data.reviews);
       setTelemetry(data.telemetry);
       setBenchmark(data.benchmark);
+      setManagedBenchmark(data.managedBenchmark);
       setLastUpdated(new Date());
       setError(null);
     } catch {
@@ -240,13 +244,13 @@ export default function App() {
 
   useEffect(() => {
     void refresh();
-    const timer = window.setInterval(() => void refresh(), 2000);
+    const timer = window.setInterval(() => { setNow(Date.now()); void refresh(); }, 2000);
     return () => window.clearInterval(timer);
   }, [refresh]);
 
   const actions = useMemo(() => summarize(events), [events]);
   const selected = actions.find((action) => action.actionId === selectedId) ?? actions[0] ?? null;
-  const selectedReview = reviews.find((review) => review.action_id === selected?.actionId) ?? reviews[0] ?? null;
+  const selectedReview = reviews.find((review) => review.action_id === selected?.actionId) ?? null;
   const displayPreview = selectedReview?.preview ?? selected?.preview ?? null;
   const displayVerdict = selectedReview?.verdict ?? selected?.verdict ?? null;
 
@@ -257,11 +261,24 @@ export default function App() {
   };
   const hybridBenchmark = benchmark?.configurations.recorded_hybrid;
   const rulesBenchmark = benchmark?.configurations.rules_only;
+  const chartBenchmark = managedBenchmark ?? benchmark;
+  const benchmarkBars = chartBenchmark ? [
+    { label: "Rules only", value: chartBenchmark.configurations.rules_only?.accuracy ?? 0 },
+    { label: managedBenchmark ? "Muse Wonder" : "Recorded Wonder", value: chartBenchmark.configurations[managedBenchmark ? "managed_wonder_only" : "recorded_wonder_only"]?.accuracy ?? 0 },
+    { label: managedBenchmark ? "Hybrid" : "Recorded hybrid", value: chartBenchmark.configurations[managedBenchmark ? "managed_hybrid" : "recorded_hybrid"]?.accuracy ?? 0 },
+  ] : [];
+  const confirmationCurrent = confirmation && reviews.some((review) =>
+    review.action_id === confirmation.review.action_id &&
+    review.preview.action_digest === confirmation.review.preview.action_digest &&
+    review.preview.digest === confirmation.review.preview.digest
+  );
+  const confirmationExpired = confirmation ? new Date(confirmation.review.expires_at).getTime() <= now : false;
 
   async function decide(review: PendingReview, decision: "approve" | "deny") {
     setBusy(decision);
     try {
       await decideReview(review, decision);
+      setConfirmation(null);
       await refresh();
     } catch {
       setError("The decision was rejected or expired. The action remains fail-closed.");
@@ -425,12 +442,14 @@ export default function App() {
                   <span>Decision source</span><strong>{selectedReview.verdict.source}</strong>
                 </div>
                 <div className="review-actions">
-                  <button className="button button--deny" disabled={busy !== null} onClick={() => void decide(selectedReview, "deny")}>{busy === "deny" ? "Denying…" : "Deny"}</button>
-                  <button className="button button--approve" disabled={busy !== null || !selectedReview.can_approve} onClick={() => void decide(selectedReview, "approve")}>{busy === "approve" ? "Approving…" : selectedReview.can_approve ? "Approve exact action" : "Adapter unavailable"}</button>
+                  <button className="button button--deny" disabled={busy !== null} onClick={() => setConfirmation({ review: selectedReview, decision: "deny" })}>Deny</button>
+                  <button className="button button--approve" disabled={busy !== null || !selectedReview.can_approve || new Date(selectedReview.expires_at).getTime() <= now} onClick={() => setConfirmation({ review: selectedReview, decision: "approve" })}>{selectedReview.can_approve ? "Approve exact action" : "Adapter unavailable"}</button>
                 </div>
                 <p className="capability-note">{selectedReview.capability_note}</p>
                 <p className="review-note">Approval covers only the two digests shown. Any mutation forces a new review.</p>
               </div>
+            ) : reviews.length > 0 ? (
+              <div className="empty-state"><span>!</span><strong>{reviews.length} action(s) waiting</strong><p>Select a paused action in the feed to inspect and decide it.</p></div>
             ) : (
               <div className="empty-state"><span>✓</span><strong>Queue clear</strong><p>Routine work flows silently. Consequential ambiguity will pause here.</p></div>
             )}
@@ -451,9 +470,15 @@ export default function App() {
                     allows {(hybridBenchmark.unsafe_allow_rate * 100).toFixed(0)}%. Recorded
                     Wonder replay—not a live model measurement.
                   </p>
-                  <span className="progress progress--ready">
-                    <i style={{ width: `${hybridBenchmark.accuracy * 100}%` }} />
-                  </span>
+                  {managedBenchmark && <p><strong>Managed sample:</strong> {managedBenchmark.case_count} development cases · {managedBenchmark.model}. Separate from the 60-case replay above.</p>}
+                  <div className="bench-chart" role="img" aria-label={`Three-class accuracy comparison across ${chartBenchmark?.case_count ?? 0} ${managedBenchmark ? "managed development sample" : "recorded replay"} cases`}>
+                    {benchmarkBars.map((bar) => <div className="bench-chart__row" key={bar.label}>
+                      <span>{bar.label}</span>
+                      <div className="bench-chart__track"><i style={{ width: `${Math.min(100, Math.max(0, bar.value * 100))}%` }} /></div>
+                      <strong>{(bar.value * 100).toFixed(0)}%</strong>
+                    </div>)}
+                  </div>
+                  <p>{managedBenchmark ? "Managed Wonder sample · six preselected development cases; no held-out model score." : "Recorded replay · no live model measurement."}</p>
                 </>
               ) : (
                 <>
@@ -465,6 +490,27 @@ export default function App() {
           </aside>
         </section>
       </main>
+
+      {confirmation && <div className="dialog-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setConfirmation(null); }}>
+        <section className="decision-dialog" role="dialog" aria-modal="true" aria-labelledby="decision-dialog-title">
+          <p className="eyebrow">EXACT ACTION REVIEW</p>
+          <h2 id="decision-dialog-title">{confirmation.decision === "approve" ? "Approve this action?" : "Deny this action?"}</h2>
+          <p>{confirmation.review.verdict.explanation}</p>
+          <dl>
+            <dt>Action</dt><dd>{confirmation.review.kind.replaceAll("_", " ")} #{shortId(confirmation.review.action_id)}</dd>
+            <dt>Task</dt><dd>{confirmation.review.task_text}</dd>
+            <dt>Resolved impact</dt><dd>{confirmation.review.preview.affected_file_count} files · {formatBytes(confirmation.review.preview.affected_bytes)} · {confirmation.review.preview.network_destination ?? "local"}</dd>
+            <dt>Expires</dt><dd>{formatTime(confirmation.review.expires_at)}</dd>
+            <dt>Action digest</dt><dd className="mono">{confirmation.review.preview.action_digest}</dd>
+            <dt>Preview digest</dt><dd className="mono">{confirmation.review.preview.digest}</dd>
+          </dl>
+          {(!confirmationCurrent || confirmationExpired) && <p className="text-red" role="alert">This review expired or changed. Refresh before deciding.</p>}
+          <div className="dialog-actions">
+            <button className="button button--deny" onClick={() => setConfirmation(null)}>Cancel</button>
+            <button className={`button button--${confirmation.decision === "approve" ? "approve" : "deny"}`} disabled={busy !== null || !confirmationCurrent || confirmationExpired || (confirmation.decision === "approve" && !confirmation.review.can_approve)} onClick={() => void decide(confirmation.review, confirmation.decision)}>{busy ? "Submitting…" : `Confirm ${confirmation.decision}`}</button>
+          </div>
+        </section>
+      </div>}
 
       <footer>
         <span>Leash holds the capability. Models provide signals.</span>

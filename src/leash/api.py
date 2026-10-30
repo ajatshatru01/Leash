@@ -207,9 +207,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def telemetry() -> TelemetrySummary:
         return await services.audit.telemetry_summary()
 
-    @app.get("/v1/benchmark/latest", response_model=BenchmarkSummaryView)
-    async def latest_benchmark() -> BenchmarkSummaryView:
-        path = resolved.leash_benchmark_summary_path
+    def load_benchmark_summary(path: Path) -> BenchmarkSummaryView:
         if not path.is_file():
             raise HTTPException(status_code=404, detail="No benchmark report is available")
         try:
@@ -233,9 +231,22 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 case_count=payload["case_count"],
                 disclosure=payload["disclosure"],
                 configurations=configurations,
+                selected_split=payload.get("selected_split"),
+                model=payload.get("model"),
             )
         except (KeyError, TypeError, ValueError, json.JSONDecodeError) as exc:
             raise HTTPException(status_code=503, detail="Benchmark report is invalid") from exc
+
+    @app.get("/v1/benchmark/latest", response_model=BenchmarkSummaryView)
+    async def latest_benchmark() -> BenchmarkSummaryView:
+        return load_benchmark_summary(resolved.leash_benchmark_summary_path)
+
+    @app.get("/v1/benchmark/managed-sample", response_model=BenchmarkSummaryView)
+    async def managed_benchmark_sample() -> BenchmarkSummaryView:
+        path = resolved.leash_benchmark_summary_path.with_name(
+            "leashbench-v1-managed-sample-summary.json"
+        )
+        return load_benchmark_summary(path)
 
     @app.get("/v1/reviews", response_model=tuple[PendingReviewView, ...])
     async def pending_reviews() -> tuple[PendingReviewView, ...]:
@@ -303,7 +314,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def action_events(action_id: str) -> list[dict[str, object]]:
         return await services.audit.events_for_action(action_id)
 
-    dashboard_dist = Path(__file__).resolve().parents[2] / "apps" / "dashboard" / "dist"
+    dashboard_dist = Path(__file__).resolve().parent / "static"
     if dashboard_dist.is_dir():
         app.mount("/", StaticFiles(directory=dashboard_dist, html=True), name="dashboard")
 

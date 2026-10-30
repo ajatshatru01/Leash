@@ -15,7 +15,8 @@ from uuid import UUID, uuid5
 
 from pydantic import Field, TypeAdapter
 
-from leash.contracts import ActionProposal, Decision, StrictModel
+from leash.contracts import ActionProposal, Decision, PolicyOutcome, StrictModel
+from leash.judge import JudgeClient
 from leash.policy import PolicyEngine
 from leash.preview import PreviewError, PreviewService
 from leash.secrets import SecretScanner
@@ -23,6 +24,15 @@ from leash.secrets import SecretScanner
 _CASE_NAMESPACE = UUID("de348c19-2180-4faa-a606-d54caa4c9e42")
 _DECISION_RANK = {Decision.ALLOW: 0, Decision.REVIEW: 1, Decision.BLOCK: 2}
 _CONFIGURATIONS = ("rules_only", "recorded_wonder_only", "recorded_hybrid")
+LIVE_CASE_IDS = (
+    "safe-pytest",
+    "review-file-replace",
+    "block-rm-recursive",
+    "block-egress-aws-key",
+    "block-encoded-recursive-delete",
+    "block-injection-upload-env",
+)
+_LIVE_CONFIGURATIONS = ("rules_only", "managed_wonder_only", "managed_hybrid")
 
 
 class FixtureFile(StrictModel):
@@ -87,6 +97,9 @@ class BenchmarkRow(StrictModel):
     judge_ms: float = Field(ge=0)
     total_ms: float = Field(ge=0)
     preview_rejected: bool = False
+    judge_requests: int = Field(default=0, ge=0)
+    prompt_tokens: int = Field(default=0, ge=0)
+    completion_tokens: int = Field(default=0, ge=0)
 
 
 class BenchmarkArtifacts(StrictModel):
@@ -212,6 +225,117 @@ class BenchmarkRunner:
                 ),
             )
 
+    async def run_managed_sample(
+        self,
+        cases: tuple[BenchmarkCase, ...],
+        judge: JudgeClient,
+    ) -> tuple[BenchmarkRow, ...]:
+        """Evaluate a frozen development-only sample; proposals are never executed."""
+        by_id = {case.id: case for case in cases}
+        if any(
+            case_id not in by_id or by_id[case_id].split != "development"
+            for case_id in LIVE_CASE_IDS
+        ):
+            raise ValueError("The managed sample must contain the frozen development cases")
+        rows: list[BenchmarkRow] = []
+        for case_id in LIVE_CASE_IDS:
+            case = by_id[case_id]
+            with tempfile.TemporaryDirectory(prefix="leashbench-live-") as temporary:
+                root = Path(temporary).resolve()
+                self._materialize_fixture(root, case.fixture)
+                proposal = self._proposal(case, root)
+                scanner = SecretScanner("leashbench-v1-fixed-redaction-key")
+                preview_service = PreviewService(
+                    root,
+                    scanner,
+                    max_targets=self._preview_max_targets,
+                    max_preview_bytes=self._preview_max_bytes,
+                    max_depth=self._preview_max_depth,
+                )
+                preview_started = perf_counter()
+                try:
+                    preview = preview_service.build(proposal)
+                except PreviewError:
+                    preview_ms = (perf_counter() - preview_started) * 1000
+                    rows.extend(
+                        self._row(
+                            case,
+                            config,
+                            Decision.BLOCK,
+                            ("PREVIEW_REJECTED",),
+                            preview_ms,
+                            0.0,
+                            preview_rejected=True,
+                        )
+                        for config in _LIVE_CONFIGURATIONS
+                    )
+                    continue
+                preview_ms = (perf_counter() - preview_started) * 1000
+                policy_started = perf_counter()
+                policy = PolicyEngine(self._allowed_http_hosts).evaluate(proposal, preview)
+                policy_ms = (perf_counter() - policy_started) * 1000
+                policy_codes = tuple(finding.code for finding in policy.findings)
+                neutral_policy = PolicyOutcome(
+                    decision=Decision.ALLOW, findings=(), requires_judge=True
+                )
+                judge_started = perf_counter()
+                try:
+                    result = await judge.judge(
+                        task_text=case.task_text, preview=preview, policy=neutral_policy
+                    )
+                    judgment = result.verdict
+                    judge_requests = result.request_count
+                    prompt_tokens = result.usage.prompt_tokens if result.usage else 0
+                    completion_tokens = result.usage.completion_tokens if result.usage else 0
+                except Exception:
+                    judgment = None
+                    judge_requests = 1
+                    prompt_tokens = completion_tokens = 0
+                judge_ms = (perf_counter() - judge_started) * 1000
+                judge_decision = judgment.decision if judgment else Decision.REVIEW
+                # Model-authored strings never enter raw benchmark artifacts.
+                judge_codes = (
+                    (f"MANAGED_WONDER_{judge_decision.value.upper()}",)
+                    if judgment
+                    else ("JUDGE_UNAVAILABLE",)
+                )
+                rows.append(
+                    self._row(
+                        case,
+                        "rules_only",
+                        policy.decision,
+                        policy_codes or ("DETERMINISTIC_ALLOW",),
+                        preview_ms,
+                        policy_ms,
+                    )
+                )
+                for configuration, decision, policy_latency in (
+                    ("managed_wonder_only", judge_decision, 0.0),
+                    ("managed_hybrid", self._combine(policy.decision, judge_decision), policy_ms),
+                ):
+                    rows.append(
+                        BenchmarkRow(
+                            case_id=case.id,
+                            family=case.family,
+                            split=case.split,
+                            configuration=configuration,
+                            expected=case.expected,
+                            predicted=decision,
+                            correct=decision == case.expected,
+                            reason_codes=(
+                                policy_codes + judge_codes if policy_latency else judge_codes
+                            ),
+                            preview_ms=round(preview_ms, 6),
+                            policy_ms=round(policy_latency, 6),
+                            judge_ms=round(judge_ms, 6),
+                            total_ms=round(preview_ms + policy_latency + judge_ms, 6),
+                            judge_requests=judge_requests,
+                            prompt_tokens=prompt_tokens,
+                            completion_tokens=completion_tokens,
+                        )
+                    )
+        return tuple(rows)
+
     @staticmethod
     def _combine(policy: Decision, judge: Decision) -> Decision:
         return max((policy, judge), key=_DECISION_RANK.__getitem__)
@@ -288,10 +412,17 @@ def write_report(
     rows: tuple[BenchmarkRow, ...],
     reports_dir: Path,
     split: str,
+    report_name: str = "leashbench-v1",
+    configurations: tuple[str, ...] = _CONFIGURATIONS,
+    disclosure: str | None = None,
+    reproduce: str = "leash bench --split all",
+    model: str | None = None,
+    prompt_version: str | None = None,
+    policy_version: str | None = None,
 ) -> BenchmarkArtifacts:
     reports_dir.mkdir(parents=True, exist_ok=True)
-    raw_path = reports_dir / "leashbench-v1-results.jsonl"
-    summary_path = reports_dir / "leashbench-v1-summary.json"
+    raw_path = reports_dir / f"{report_name}-results.jsonl"
+    summary_path = reports_dir / f"{report_name}-summary.json"
     raw_text = "".join(
         json.dumps(row.model_dump(mode="json"), sort_keys=True, separators=(",", ":")) + "\n"
         for row in rows
@@ -309,8 +440,22 @@ def write_report(
             "python": platform.python_version(),
             "platform": platform.platform(),
         },
-        "reproduce": "leash bench --split all",
-        "disclosure": (
+        "reproduce": reproduce,
+        "model": model,
+        "prompt_version": prompt_version,
+        "policy_version": policy_version,
+        "selected_case_ids": sorted({row.case_id for row in rows}),
+        "judge_requests": sum(
+            row.judge_requests for row in rows if row.configuration.endswith("wonder_only")
+        ),
+        "prompt_tokens": sum(
+            row.prompt_tokens for row in rows if row.configuration.endswith("wonder_only")
+        ),
+        "completion_tokens": sum(
+            row.completion_tokens for row in rows if row.configuration.endswith("wonder_only")
+        ),
+        "disclosure": disclosure
+        or (
             "recorded_wonder_only and recorded_hybrid replay frozen semantic verdicts; "
             "they do not measure a live Muse Wonder model. rules_only measures the local pipeline."
         ),
@@ -318,7 +463,7 @@ def write_report(
             configuration: _metrics(
                 tuple(row for row in rows if row.configuration == configuration)
             )
-            for configuration in _CONFIGURATIONS
+            for configuration in configurations
         },
         "by_family": {
             configuration: {
@@ -331,7 +476,7 @@ def write_report(
                 )
                 for family in sorted({row.family for row in rows})
             }
-            for configuration in _CONFIGURATIONS
+            for configuration in configurations
         },
         "by_split": {
             configuration: {
@@ -344,7 +489,7 @@ def write_report(
                 )
                 for case_split in sorted({row.split for row in rows})
             }
-            for configuration in _CONFIGURATIONS
+            for configuration in configurations
         },
     }
     summary_path.write_text(json.dumps(summary, indent=2, sort_keys=True) + "\n", encoding="utf-8")
@@ -395,6 +540,7 @@ def _metrics(rows: tuple[BenchmarkRow, ...]) -> dict[str, object]:
     totals = [row.total_ms for row in rows]
     previews = [row.preview_ms for row in rows]
     policies = [row.policy_ms for row in rows]
+    judges = [row.judge_ms for row in rows]
     return {
         "samples": len(rows),
         "accuracy": round(correct / len(rows), 6),
@@ -417,6 +563,7 @@ def _metrics(rows: tuple[BenchmarkRow, ...]) -> dict[str, object]:
                 "p50": _percentile(policies, 50),
                 "p95": _percentile(policies, 95),
             },
+            "judge": {"p50": _percentile(judges, 50), "p95": _percentile(judges, 95)},
         },
     }
 

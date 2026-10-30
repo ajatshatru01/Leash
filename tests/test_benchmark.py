@@ -6,8 +6,8 @@ from pathlib import Path
 
 import pytest
 
-from leash.benchmark import BenchmarkRunner, load_cases, write_report
-from leash.contracts import Decision
+from leash.benchmark import LIVE_CASE_IDS, BenchmarkRunner, load_cases, write_report
+from leash.contracts import Decision, JudgeCallResult, JudgeVerdict, ModelUsage, PolicyOutcome
 
 CASES_DIR = Path(__file__).resolve().parents[1] / "bench" / "cases"
 
@@ -85,3 +85,64 @@ def test_fixture_path_escape_is_rejected() -> None:
         BenchmarkRunner().run((case,))
 
     assert not case_path.exists()
+
+
+@pytest.mark.asyncio
+async def test_managed_sample_uses_only_frozen_development_cases_and_separate_artifacts(
+    tmp_path: Path,
+) -> None:
+    class FakeJudge:
+        calls = 0
+
+        async def judge(
+            self, *, task_text: str, preview: object, policy: object
+        ) -> JudgeCallResult:
+            del task_text, preview
+            assert isinstance(policy, PolicyOutcome)
+            assert policy.decision == Decision.ALLOW
+            assert policy.findings == ()
+            self.calls += 1
+            return JudgeCallResult(
+                verdict=JudgeVerdict(
+                    decision=Decision.REVIEW,
+                    reason_codes=("FAKE_REVIEW",),
+                    explanation="Recorded test judge requests review.",
+                ),
+                usage=ModelUsage(
+                    provider="test",
+                    model="fake",
+                    prompt_tokens=10,
+                    completion_tokens=2,
+                    total_tokens=12,
+                    source="recorded",
+                ),
+            )
+
+    cases = load_cases(CASES_DIR)
+    judge = FakeJudge()
+    rows = await BenchmarkRunner().run_managed_sample(cases, judge)
+    assert {row.case_id for row in rows} == set(LIVE_CASE_IDS)
+    assert all(row.split == "development" for row in rows)
+    assert len(rows) == 18
+    assert judge.calls <= len(LIVE_CASE_IDS)
+    assert all(
+        row.judge_requests == 1
+        for row in rows
+        if row.configuration == "managed_hybrid" and not row.preview_rejected
+    )
+    artifacts = write_report(
+        cases=cases,
+        rows=rows,
+        reports_dir=tmp_path,
+        split="development_sample",
+        report_name="leashbench-v1-managed-sample",
+        configurations=("rules_only", "managed_wonder_only", "managed_hybrid"),
+        disclosure="Test-only managed sample",
+        model="fake",
+    )
+    summary = json.loads(artifacts.summary.read_text(encoding="utf-8"))
+    assert summary["case_count"] == 6
+    assert summary["model"] == "fake"
+    assert "managed_hybrid" in summary["configurations"]
+    assert "recorded_hybrid" not in summary["configurations"]
+    assert "FAKEBENCHMARKVALUE" not in artifacts.raw_results.read_text(encoding="utf-8")

@@ -115,16 +115,25 @@ async def test_latest_benchmark_endpoint_returns_generated_summary(settings: Set
         ),
         encoding="utf-8",
     )
+    sample_path = summary_path.with_name("leashbench-v1-managed-sample-summary.json")
+    sample = json.loads(summary_path.read_text(encoding="utf-8"))
+    sample.update(
+        {"case_count": 6, "model": "muse-wonder-1.0", "selected_split": "development_sample"}
+    )
+    sample_path.write_text(json.dumps(sample), encoding="utf-8")
     app = create_app(settings.model_copy(update={"leash_benchmark_summary_path": summary_path}))
 
     async with app.router.lifespan_context(app):
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://test") as client:
             response = await client.get("/v1/benchmark/latest")
+            managed_response = await client.get("/v1/benchmark/managed-sample")
 
     assert response.status_code == 200
     assert response.json()["case_count"] == 60
     assert response.json()["configurations"]["recorded_hybrid"]["block_recall"] == 1.0
+    assert managed_response.status_code == 200
+    assert managed_response.json()["model"] == "muse-wonder-1.0"
 
 
 @pytest.mark.asyncio
@@ -141,6 +150,17 @@ async def test_latest_benchmark_endpoint_is_optional(settings: Settings) -> None
             response = await client.get("/v1/benchmark/latest")
 
     assert response.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_packaged_dashboard_is_served(settings: Settings) -> None:
+    app = create_app(settings)
+    async with app.router.lifespan_context(app):
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            response = await client.get("/")
+    assert response.status_code == 200
+    assert '<div id="root"></div>' in response.text
 
 
 @pytest.mark.asyncio

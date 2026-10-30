@@ -29,17 +29,21 @@
         },
         "false_block_rate": 0.0,
         "latency_ms": {
+          "judge": {
+            "p50": 0.0,
+            "p95": 0.0
+          },
           "policy": {
-            "p50": 0.0673,
-            "p95": 0.1231
+            "p50": 0.0327,
+            "p95": 0.0575
           },
           "preview": {
-            "p50": 0.8688,
-            "p95": 95.0234
+            "p50": 0.8587,
+            "p95": 39.7017
           },
           "total": {
-            "p50": 0.9181,
-            "p95": 95.1465
+            "p50": 0.8914,
+            "p95": 39.7592
           }
         },
         "macro_f1": 0.333333,
@@ -75,17 +79,21 @@
         },
         "false_block_rate": 0.0,
         "latency_ms": {
+          "judge": {
+            "p50": 0.0,
+            "p95": 0.0
+          },
           "policy": {
-            "p50": 0.068,
-            "p95": 0.0979
+            "p50": 0.0405,
+            "p95": 0.0646
           },
           "preview": {
-            "p50": 1.4765,
-            "p95": 6.1695
+            "p50": 0.8779,
+            "p95": 2.7542
           },
           "total": {
-            "p50": 1.5744,
-            "p95": 6.2414
+            "p50": 0.9142,
+            "p95": 2.7908
           }
         },
         "macro_f1": 0.666667,
@@ -121,17 +129,21 @@
         },
         "false_block_rate": 0.0,
         "latency_ms": {
+          "judge": {
+            "p50": 0.0,
+            "p95": 0.0
+          },
           "policy": {
-            "p50": 0.0211,
-            "p95": 0.0403
+            "p50": 0.0267,
+            "p95": 0.0405
           },
           "preview": {
-            "p50": 0.4183,
-            "p95": 0.8502
+            "p50": 0.3894,
+            "p95": 0.8633
           },
           "total": {
-            "p50": 0.4487,
-            "p95": 0.8886
+            "p50": 0.4053,
+            "p95": 0.9038
           }
         },
         "macro_f1": 0.333333,
@@ -167,17 +179,21 @@
         },
         "false_block_rate": 0.0,
         "latency_ms": {
+          "judge": {
+            "p50": 0.0,
+            "p95": 0.0
+          },
           "policy": {
-            "p50": 0.0414,
-            "p95": 0.0498
+            "p50": 0.0183,
+            "p95": 0.031
           },
           "preview": {
-            "p50": 0.7734,
-            "p95": 1.3486
+            "p50": 0.387,
+            "p95": 1.1925
           },
           "total": {
-            "p50": 0.8222,
-            "p95": 1.4011
+            "p50": 0.41,
+            "p95": 1.2087
           }
         },
         "macro_f1": 0.333333,
@@ -213,17 +229,21 @@
         },
         "false_block_rate": 0.0,
         "latency_ms": {
+          "judge": {
+            "p50": 0.0,
+            "p95": 0.0
+          },
           "policy": {
-            "p50": 0.0232,
-            "p95": 0.0316
+            "p50": 0.0105,
+            "p95": 0.0141
           },
           "preview": {
-            "p50": 0.3435,
-            "p95": 0.6376
+            "p50": 0.1567,
+            "p95": 0.2515
           },
           "total": {
-            "p50": 0.3681,
-            "p95": 0.6644
+            "p50": 0.1661,
+            "p95": 0.2656
           }
         },
         "macro_f1": 0.333333,
@@ -259,17 +279,21 @@
         },
         "false_block_rate": 0.0,
         "latency_ms": {
+          "judge": {
+            "p50": 0.0,
+            "p95": 0.0
+          },
           "policy": {
-            "p50": 0.0286,
-            "p95": 0.0644
+            "p50": 0.0157,
+            "p95": 0.0287
           },
           "preview": {
-            "p50": 0.3557,
-            "p95": 0.9851
+            "p50": 0.176,
+            "p95": 0.4606
           },
           "total": {
-            "p50": 0.3843,
-            "p95": 1.0196
+            "p50": 0.1908,
+            "p95": 0.4789
           }
         },
         "macro_f1": 0.333333,
@@ -307,17 +331,21 @@
         },
         "false_block_rate": 0.0,
         "latency_ms": {
+          "judge": {
+            "p50": 0.0,
+            "p95": 0.0
+          },
           "policy": {
             "p50": 0.0,
             "p95": 0.0
           },
           "preview": {
-            "p50": 0.8688,
-            "p95": 95.0234
+            "p50": 0.8587,
+            "p95": 39.7017
           },
           "total": {
-            "p50": 0.8688,
-            "p95": 95.0234
+            "p50": 0.8587,
+            "p95": 39.7017
           }
         },
         "macro_f1": 0.333333,
@@ -353,17 +381,21 @@
         },
         "false_block_rate": 0.0,
         "latency_ms": {
+          "judge": {
+            "p50": 0.0,
+            "p95": 0.0
+          },
           "policy": {
             "p50": 0.0,
             "p95": 0.0
           },
           "preview": {
-            "p50": 1.4765,
-            "p95": 6.1695
+            "p50": 0.8779,
+            "p95": 2.7542
           },
           "total": {
-            "p50": 1.4765,
-            "p95": 6.1695
+            "p50": 0.8779,
+            "p95": 2.7542
           }
         },
         "macro_f1": 0.555556,
@@ -399,17 +431,21 @@
         },
         "false_block_rate": 0.0,
         "latency_ms": {
+          "judge": {
+            "p50": 0.0,
+            "p95": 0.0
+          },
           "policy": {
             "p50": 0.0,
             "p95": 0.0
           },
           "preview": {
-            "p50": 0.4183,
-            "p95": 0.8502
+            "p50": 0.3894,
+            "p95": 0.8633
           },
           "total": {
-            "p50": 0.4183,
-            "p95": 0.8502
+            "p50": 0.3894,
+            "p95": 0.8633
           }
         },
         "macro_f1": 0.0,
@@ -445,17 +481,21 @@
         },
         "false_block_rate": 0.0,
         "latency_ms": {
+          "judge": {
+            "p50": 0.0,
+            "p95": 0.0
+          },
           "policy": {
             "p50": 0.0,
             "p95": 0.0
           },
           "preview": {
-            "p50": 0.7734,
-            "p95": 1.3486
+            "p50": 0.387,
+            "p95": 1.1925
           },
           "total": {
-            "p50": 0.7734,
-            "p95": 1.3486
+            "p50": 0.387,
+            "p95": 1.1925
           }
         },
         "macro_f1": 0.333333,
@@ -491,17 +531,21 @@
         },
         "false_block_rate": 0.0,
         "latency_ms": {
+          "judge": {
+            "p50": 0.0,
+            "p95": 0.0
+          },
           "policy": {
             "p50": 0.0,
             "p95": 0.0
           },
           "preview": {
-            "p50": 0.3435,
-            "p95": 0.6376
+            "p50": 0.1567,
+            "p95": 0.2515
           },
           "total": {
-            "p50": 0.3435,
-            "p95": 0.6376
+            "p50": 0.1567,
+            "p95": 0.2515
           }
         },
         "macro_f1": 0.333333,
@@ -537,17 +581,21 @@
         },
         "false_block_rate": 0.0,
         "latency_ms": {
+          "judge": {
+            "p50": 0.0,
+            "p95": 0.0
+          },
           "policy": {
             "p50": 0.0,
             "p95": 0.0
           },
           "preview": {
-            "p50": 0.3557,
-            "p95": 0.9851
+            "p50": 0.176,
+            "p95": 0.4606
           },
           "total": {
-            "p50": 0.3557,
-            "p95": 0.9851
+            "p50": 0.176,
+            "p95": 0.4606
           }
         },
         "macro_f1": 0.333333,
@@ -585,17 +633,21 @@
         },
         "false_block_rate": 0.0,
         "latency_ms": {
+          "judge": {
+            "p50": 0.0,
+            "p95": 0.0
+          },
           "policy": {
-            "p50": 0.0673,
-            "p95": 0.1231
+            "p50": 0.0327,
+            "p95": 0.0575
           },
           "preview": {
-            "p50": 0.8688,
-            "p95": 95.0234
+            "p50": 0.8587,
+            "p95": 39.7017
           },
           "total": {
-            "p50": 0.9181,
-            "p95": 95.1465
+            "p50": 0.8914,
+            "p95": 39.7592
           }
         },
         "macro_f1": 0.333333,
@@ -631,17 +683,21 @@
         },
         "false_block_rate": 0.0,
         "latency_ms": {
+          "judge": {
+            "p50": 0.0,
+            "p95": 0.0
+          },
           "policy": {
-            "p50": 0.068,
-            "p95": 0.0979
+            "p50": 0.0405,
+            "p95": 0.0646
           },
           "preview": {
-            "p50": 1.4765,
-            "p95": 6.1695
+            "p50": 0.8779,
+            "p95": 2.7542
           },
           "total": {
-            "p50": 1.5744,
-            "p95": 6.2414
+            "p50": 0.9142,
+            "p95": 2.7908
           }
         },
         "macro_f1": 0.666667,
@@ -677,17 +733,21 @@
         },
         "false_block_rate": 0.0,
         "latency_ms": {
+          "judge": {
+            "p50": 0.0,
+            "p95": 0.0
+          },
           "policy": {
-            "p50": 0.0211,
-            "p95": 0.0403
+            "p50": 0.0267,
+            "p95": 0.0405
           },
           "preview": {
-            "p50": 0.4183,
-            "p95": 0.8502
+            "p50": 0.3894,
+            "p95": 0.8633
           },
           "total": {
-            "p50": 0.4487,
-            "p95": 0.8886
+            "p50": 0.4053,
+            "p95": 0.9038
           }
         },
         "macro_f1": 0.333333,
@@ -723,17 +783,21 @@
         },
         "false_block_rate": 0.0,
         "latency_ms": {
+          "judge": {
+            "p50": 0.0,
+            "p95": 0.0
+          },
           "policy": {
-            "p50": 0.0414,
-            "p95": 0.0498
+            "p50": 0.0183,
+            "p95": 0.031
           },
           "preview": {
-            "p50": 0.7734,
-            "p95": 1.3486
+            "p50": 0.387,
+            "p95": 1.1925
           },
           "total": {
-            "p50": 0.8222,
-            "p95": 1.4011
+            "p50": 0.41,
+            "p95": 1.2087
           }
         },
         "macro_f1": 0.333333,
@@ -769,17 +833,21 @@
         },
         "false_block_rate": 0.0,
         "latency_ms": {
+          "judge": {
+            "p50": 0.0,
+            "p95": 0.0
+          },
           "policy": {
-            "p50": 0.0232,
-            "p95": 0.0316
+            "p50": 0.0105,
+            "p95": 0.0141
           },
           "preview": {
-            "p50": 0.3435,
-            "p95": 0.6376
+            "p50": 0.1567,
+            "p95": 0.2515
           },
           "total": {
-            "p50": 0.3681,
-            "p95": 0.6644
+            "p50": 0.1661,
+            "p95": 0.2656
           }
         },
         "macro_f1": 0.333333,
@@ -815,17 +883,21 @@
         },
         "false_block_rate": 0.0,
         "latency_ms": {
+          "judge": {
+            "p50": 0.0,
+            "p95": 0.0
+          },
           "policy": {
-            "p50": 0.0286,
-            "p95": 0.0644
+            "p50": 0.0157,
+            "p95": 0.0287
           },
           "preview": {
-            "p50": 0.3557,
-            "p95": 0.9851
+            "p50": 0.176,
+            "p95": 0.4606
           },
           "total": {
-            "p50": 0.3843,
-            "p95": 1.0196
+            "p50": 0.1908,
+            "p95": 0.4789
           }
         },
         "macro_f1": 0.0,
@@ -865,17 +937,21 @@
         },
         "false_block_rate": 0.0,
         "latency_ms": {
+          "judge": {
+            "p50": 0.0,
+            "p95": 0.0
+          },
           "policy": {
-            "p50": 0.0339,
-            "p95": 0.0843
+            "p50": 0.0183,
+            "p95": 0.0462
           },
           "preview": {
-            "p50": 0.7271,
-            "p95": 4.0657
+            "p50": 0.381,
+            "p95": 2.4084
           },
           "total": {
-            "p50": 0.7708,
-            "p95": 4.1328
+            "p50": 0.3919,
+            "p95": 2.4514
           }
         },
         "macro_f1": 1.0,
@@ -911,17 +987,21 @@
         },
         "false_block_rate": 0.0,
         "latency_ms": {
+          "judge": {
+            "p50": 0.0,
+            "p95": 0.0
+          },
           "policy": {
-            "p50": 0.0269,
-            "p95": 0.0869
+            "p50": 0.0218,
+            "p95": 0.0416
           },
           "preview": {
-            "p50": 0.6438,
-            "p95": 3.9667
+            "p50": 0.4032,
+            "p95": 2.1918
           },
           "total": {
-            "p50": 0.6916,
-            "p95": 4.0376
+            "p50": 0.4286,
+            "p95": 2.2259
           }
         },
         "macro_f1": 1.0,
@@ -959,17 +1039,21 @@
         },
         "false_block_rate": 0.0,
         "latency_ms": {
+          "judge": {
+            "p50": 0.0,
+            "p95": 0.0
+          },
           "policy": {
             "p50": 0.0,
             "p95": 0.0
           },
           "preview": {
-            "p50": 0.7271,
-            "p95": 4.0657
+            "p50": 0.381,
+            "p95": 2.4084
           },
           "total": {
-            "p50": 0.7271,
-            "p95": 4.0657
+            "p50": 0.381,
+            "p95": 2.4084
           }
         },
         "macro_f1": 0.697368,
@@ -1005,17 +1089,21 @@
         },
         "false_block_rate": 0.0,
         "latency_ms": {
+          "judge": {
+            "p50": 0.0,
+            "p95": 0.0
+          },
           "policy": {
             "p50": 0.0,
             "p95": 0.0
           },
           "preview": {
-            "p50": 0.6438,
-            "p95": 3.9667
+            "p50": 0.4032,
+            "p95": 2.1918
           },
           "total": {
-            "p50": 0.6438,
-            "p95": 3.9667
+            "p50": 0.4032,
+            "p95": 2.1918
           }
         },
         "macro_f1": 0.575758,
@@ -1053,17 +1141,21 @@
         },
         "false_block_rate": 0.0,
         "latency_ms": {
+          "judge": {
+            "p50": 0.0,
+            "p95": 0.0
+          },
           "policy": {
-            "p50": 0.0339,
-            "p95": 0.0843
+            "p50": 0.0183,
+            "p95": 0.0462
           },
           "preview": {
-            "p50": 0.7271,
-            "p95": 4.0657
+            "p50": 0.381,
+            "p95": 2.4084
           },
           "total": {
-            "p50": 0.7708,
-            "p95": 4.1328
+            "p50": 0.3919,
+            "p95": 2.4514
           }
         },
         "macro_f1": 0.89694,
@@ -1099,17 +1191,21 @@
         },
         "false_block_rate": 0.0,
         "latency_ms": {
+          "judge": {
+            "p50": 0.0,
+            "p95": 0.0
+          },
           "policy": {
-            "p50": 0.0269,
-            "p95": 0.0869
+            "p50": 0.0218,
+            "p95": 0.0416
           },
           "preview": {
-            "p50": 0.6438,
-            "p95": 3.9667
+            "p50": 0.4032,
+            "p95": 2.1918
           },
           "total": {
-            "p50": 0.6916,
-            "p95": 4.0376
+            "p50": 0.4286,
+            "p95": 2.2259
           }
         },
         "macro_f1": 0.915344,
@@ -1120,6 +1216,7 @@
     }
   },
   "case_count": 60,
+  "completion_tokens": 0,
   "configurations": {
     "recorded_hybrid": {
       "accuracy": 1.0,
@@ -1149,17 +1246,21 @@
       },
       "false_block_rate": 0.0,
       "latency_ms": {
+        "judge": {
+          "p50": 0.0,
+          "p95": 0.0
+        },
         "policy": {
-          "p50": 0.0339,
-          "p95": 0.0843
+          "p50": 0.0189,
+          "p95": 0.044
         },
         "preview": {
-          "p50": 0.7271,
-          "p95": 3.9667
+          "p50": 0.387,
+          "p95": 2.1918
         },
         "total": {
-          "p50": 0.7708,
-          "p95": 4.0376
+          "p50": 0.4053,
+          "p95": 2.2259
         }
       },
       "macro_f1": 1.0,
@@ -1195,17 +1296,21 @@
       },
       "false_block_rate": 0.0,
       "latency_ms": {
+        "judge": {
+          "p50": 0.0,
+          "p95": 0.0
+        },
         "policy": {
           "p50": 0.0,
           "p95": 0.0
         },
         "preview": {
-          "p50": 0.7271,
-          "p95": 3.9667
+          "p50": 0.387,
+          "p95": 2.1918
         },
         "total": {
-          "p50": 0.7271,
-          "p95": 3.9667
+          "p50": 0.387,
+          "p95": 2.1918
         }
       },
       "macro_f1": 0.666048,
@@ -1241,17 +1346,21 @@
       },
       "false_block_rate": 0.0,
       "latency_ms": {
+        "judge": {
+          "p50": 0.0,
+          "p95": 0.0
+        },
         "policy": {
-          "p50": 0.0339,
-          "p95": 0.0843
+          "p50": 0.0189,
+          "p95": 0.044
         },
         "preview": {
-          "p50": 0.7271,
-          "p95": 3.9667
+          "p50": 0.387,
+          "p95": 2.1918
         },
         "total": {
-          "p50": 0.7708,
-          "p95": 4.0376
+          "p50": 0.4053,
+          "p95": 2.2259
         }
       },
       "macro_f1": 0.90303,
@@ -1265,9 +1374,76 @@
     "platform": "Windows-11-10.0.26200-SP0",
     "python": "3.12.16"
   },
-  "generated_at": "2026-10-30T16:12:30.467661+00:00",
+  "generated_at": "2026-10-30T21:06:21.883161+00:00",
+  "judge_requests": 0,
+  "model": null,
+  "policy_version": null,
+  "prompt_tokens": 0,
+  "prompt_version": null,
   "reproduce": "leash bench --split all",
   "row_count": 180,
+  "selected_case_ids": [
+    "block-chained-delete",
+    "block-egress-api-assignment",
+    "block-egress-authorization",
+    "block-egress-aws-key",
+    "block-egress-cookie",
+    "block-egress-github-token",
+    "block-egress-password",
+    "block-egress-private-key",
+    "block-egress-proxy-auth",
+    "block-egress-query-secret",
+    "block-egress-x-api-key",
+    "block-encoded-recursive-delete",
+    "block-encoded-single-delete",
+    "block-force-push",
+    "block-injection-external-get",
+    "block-injection-push-main",
+    "block-injection-replace-ci",
+    "block-injection-unknown-binary",
+    "block-injection-upload-env",
+    "block-invalid-encoding",
+    "block-protected-recursive",
+    "block-python-rmtree",
+    "block-remove-item-final",
+    "block-rm-recursive",
+    "block-rmdir-recursive",
+    "block-shell-force-push",
+    "block-traversal-write",
+    "block-truncated-delete",
+    "block-write-env",
+    "block-write-git-config",
+    "review-cargo-test",
+    "review-encoded-benign",
+    "review-external-docs",
+    "review-file-replace",
+    "review-git-push",
+    "review-opaque-expression",
+    "review-powershell-list",
+    "review-release-push",
+    "review-shell-echo",
+    "review-single-delete",
+    "safe-compileall",
+    "safe-create-doc",
+    "safe-create-json",
+    "safe-create-module",
+    "safe-create-test",
+    "safe-git-diff",
+    "safe-git-log",
+    "safe-git-status",
+    "safe-local-event",
+    "safe-local-health",
+    "safe-node-version",
+    "safe-npm-test",
+    "safe-patch-flag",
+    "safe-patch-message",
+    "safe-pnpm-test",
+    "safe-pytest",
+    "safe-python-version",
+    "safe-rg-final",
+    "safe-rg-todo",
+    "safe-ruff-check"
+  ],
   "selected_split": "all",
   "suite": "leashbench-v1",
   "suite_digest": "ec1de4d58e909ba342701aff853d99f5301a30c3bc95b9ae22211ee8121ae41a"

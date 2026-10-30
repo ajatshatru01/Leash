@@ -165,6 +165,66 @@ def bench(
     typer.echo(f"summary={artifacts.summary}")
 
 
+@app.command("bench-live")
+def bench_live(
+    confirm_spend: Annotated[
+        bool,
+        typer.Option("--confirm-spend", help="Authorize up to 12 managed Wonder requests."),
+    ] = False,
+) -> None:
+    """Run the fixed six-case development sample through managed Muse Wonder."""
+    from leash.benchmark import (
+        LIVE_CASE_IDS,
+        BenchmarkRunner,
+        load_cases,
+        write_report,
+    )
+    from leash.judge import MuseWonderJudge
+    from leash.secrets import SecretScanner
+
+    if not confirm_spend:
+        typer.echo("benchmark=not_run reason=confirm_spend_required", err=True)
+        raise typer.Exit(code=2)
+    settings = get_settings()
+    if not settings.model_api_key_configured:
+        typer.echo("benchmark=not_run reason=model_api_key_missing", err=True)
+        raise typer.Exit(code=2)
+    try:
+        cases = load_cases(Path("bench/cases"))
+        judge = MuseWonderJudge(
+            settings,
+            SecretScanner("leashbench-v1-fixed-redaction-key"),
+            max_attempts=2,
+        )
+        rows = asyncio.run(BenchmarkRunner().run_managed_sample(cases, judge))
+        artifacts = write_report(
+            cases=cases,
+            rows=rows,
+            reports_dir=Path("bench/reports"),
+            split="development_sample",
+            report_name="leashbench-v1-managed-sample",
+            configurations=("rules_only", "managed_wonder_only", "managed_hybrid"),
+            disclosure=(
+                "Six preselected development cases only; this is a managed Muse Wonder sample, "
+                "not the 60-case corpus or held-out final score. Wonder receives no rule findings; "
+                "hybrid combines that same Wonder decision with rules. A request failure is review."
+            ),
+            reproduce="leash bench-live --confirm-spend",
+            model=settings.judge_model,
+            prompt_version=settings.leash_judge_prompt_version,
+            policy_version=settings.leash_policy_version,
+        )
+    except Exception as exc:
+        typer.echo(f"benchmark=failed error_type={type(exc).__name__}", err=True)
+        raise typer.Exit(code=1) from None
+    typer.echo(
+        f"benchmark=passed cases={len(LIVE_CASE_IDS)} rows={artifacts.row_count} "
+        f"model={settings.judge_model}"
+    )
+    typer.echo(f"raw_results={artifacts.raw_results}")
+    typer.echo(f"summary={artifacts.summary}")
+
+
 @app.command("destruction-demo")
 def destruction_demo() -> None:
     """Run the inert encoded-destruction scenario without deleting any file."""

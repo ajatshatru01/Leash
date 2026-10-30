@@ -80,17 +80,37 @@ This rebuilds the checked-in raw JSONL and summary JSON used by the dashboard. T
 are test-harness evidence, not a live Muse Wonder quality measurement. See
 [`docs/LEASHBENCH.md`](docs/LEASHBENCH.md) for schemas, metrics, splits, and limitations.
 
-Build the local dashboard and serve it from the same FastAPI process:
+Run the separate six-case, development-only managed Wonder sample with:
 
 ```powershell
-pnpm --dir apps/dashboard install --frozen-lockfile
-pnpm --dir apps/dashboard run build
+.\.venv\Scripts\leash.exe bench-live --confirm-spend
+```
+
+This makes at most twelve API requests and never executes a proposal. Its raw JSONL and summary
+are checked in under `bench/reports/`. Wonder receives the sanitized preview without rule findings;
+the hybrid row combines the same Wonder decision with local rules. The October 31 sample scored
+5/6 for rules-only, 5/6 for Wonder-only, and 6/6 for the hybrid. It is exploratory and is not a
+held-out 60-case model score.
+
+Build the local dashboard into the Python package, then serve it from the same FastAPI process:
+
+```powershell
 .\.venv\Scripts\leash.exe serve
 ```
 
+The compiled dashboard is checked in under `src/leash/static`, so a clean checkout only needs
+the Python environment to run the one-command demo. Rebuild after changing the React source with
+`pnpm --dir apps/dashboard install --frozen-lockfile` and
+`pnpm --dir apps/dashboard run build`. After changing API contracts, run
+`.\.venv\Scripts\python.exe scripts\generate_api_types.py` first; the test suite checks that
+the generated dashboard response types match FastAPI's OpenAPI schema.
+
 Open `http://127.0.0.1:8765`. The dashboard polls the local gateway for the redacted action feed,
 pending reviews, resolved impact, and audit integrity. It never receives raw proposal bodies or
-file contents. Approval is disabled when no real adapter exists for an action kind.
+file contents. Approval is disabled when no real adapter exists for an action kind. A confirmation
+dialog shows the exact action and preview digests and disables submission on expiry or changed review data.
+The benchmark chart reads generated summary artifacts, with the managed sample labeled separately
+from the 60-case recorded replay.
 
 ## Development
 
@@ -156,8 +176,8 @@ The Docker profile deliberately supports only Python version checks, `unittest` 
 `compileall` validation. Inspected
 loopback HTTP is implemented; Git push remains unavailable until its typed adapter is built.
 Pending reviews and the exact-packet judge cache are held only in memory, so a restart invalidates
-them and fails closed. Live Meta validation and replacing recorded benchmark verdicts with a
-controlled Muse Wonder evaluation are the next implementation stages.
+them and fails closed. The managed benchmark is currently a six-case development sample; the
+60-case Wonder comparison remains a disclosed recorded replay.
 
 The recorded-provider test suite includes two complete coding sequences: inspect → patch → validate,
 and inspect poisoned content → block credential egress → apply a safe hash-bound patch. Neither

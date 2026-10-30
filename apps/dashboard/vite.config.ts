@@ -12,7 +12,8 @@ export default defineConfig({
     },
   },
   build: {
-    outDir: "dist",
+    outDir: "../../src/leash/static",
+    emptyOutDir: true,
     sourcemap: false,
   },
 });

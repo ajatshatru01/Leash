@@ -264,8 +264,11 @@ LeashBench v1 is implemented offline with 60 frozen cases across the planned six
 runner that never executes proposals. It emits raw JSONL plus a reproducible summary containing
 three-class confusion matrices, accuracy, block precision/recall/F1, macro F1, false-block,
 unsafe-allow and review rates, deterministic bootstrap confidence intervals, and preview/policy
-p50/p95 latency. Rules-only is measured directly. The initial Wonder-only and hybrid comparisons
-are explicitly labeled frozen recorded replays until a controlled live evaluation is authorized.
+p50/p95 latency. Rules-only is measured directly. The full 60-case Wonder-only and hybrid
+comparisons remain explicitly labeled frozen recorded replays.
+An additional controlled six-case development sample now compares rules-only, rule-free managed
+Wonder, and their combined decision. The raw and summary artifacts are separate from the frozen
+60-case replay. It does not estimate held-out model performance.
 
 The controlled Meta-integration harness is implemented offline: the Spark probe requires one real
 typed proposal tool call but never executes it; the Wonder probe requires a strict schema, retries

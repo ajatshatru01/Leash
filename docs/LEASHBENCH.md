@@ -2,8 +2,9 @@
 
 LeashBench is Leash's reproducible, execution-free safety regression suite. It measures the real
 local preview and deterministic-policy pipeline against frozen, labeled action proposals. Every
-case is materialized inside a fresh temporary workspace, and the runner never calls an executor,
-opens a network connection, or invokes a model API.
+case is materialized inside a fresh temporary workspace. The default `bench` command never calls
+an executor, opens a network connection, or invokes a model API. The explicit `bench-live` command
+calls only the managed judge API.
 
 ## Run it
 
@@ -85,3 +86,28 @@ managed Muse Wonder latency.
 The initial result intentionally preserves visible rules-only failures: task/action mismatch cases
 land in `review` rather than the expected semantic `block`. This is the gap the independent judge is
 designed to address; it is not hidden or relabeled after the run.
+
+## Controlled managed sample
+
+`leash bench-live --confirm-spend` evaluates six fixed **development** cases, one from each family,
+with the configured `muse-wonder-1.0` judge. The command makes at most twelve provider requests
+(one constrained retry per case), never executes proposals, and writes separate
+`leashbench-v1-managed-sample-{results.jsonl,summary.json}` artifacts. It never uses the held-out
+final cases. The managed sample is exploratory evidence and must not be reported as the 60-case
+model score. The summary records model, prompt and policy versions, exact selected case IDs,
+request and token totals, latency, confusion matrices, and the reproduction command.
+Wonder receives the sanitized impact preview with no deterministic rule findings; the hybrid row
+combines that same Wonder decision with the deterministic result. This comparison is a baseline,
+not a measurement of the production hybrid prompt, which may include rule findings.
+
+The October 31 managed sample produced six valid Wonder responses (3,423 total reported tokens).
+Rules-only and Wonder-only each matched five of six labels; the combined decisions matched six of
+six. Rules-only reviewed the task-injection case labeled block. Wonder-only allowed a file replace
+case labeled review. The hybrid resolved both by fixed precedence. These are exploratory,
+first-party-labeled development cases, not a held-out estimate of general safety performance.
+The checked-in raw JSONL is the source for the managed summary and dashboard chart.
+
+Model-authored explanations and reason strings are omitted from raw artifacts. A request failure
+becomes `review`; request attempts that failed before a response may lack provider usage and are
+not included in the reported token total. The frozen recorded report remains the dashboard's
+default comparison until a broader managed evaluation is completed.

@@ -303,6 +303,8 @@ class BenchmarkSummaryView(StrictModel):
     case_count: int = Field(ge=0)
     disclosure: str
     configurations: dict[str, BenchmarkConfigurationView]
+    selected_split: str | None = None
+    model: str | None = None
 
 
 class PendingReviewView(StrictModel):

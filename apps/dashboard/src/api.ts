@@ -26,15 +26,16 @@ async function optionalRequest<T>(path: string): Promise<T | null> {
 }
 
 export async function loadDashboard() {
-  const [health, integrity, events, reviews, telemetry, benchmark] = await Promise.all([
+  const [health, integrity, events, reviews, telemetry, benchmark, managedBenchmark] = await Promise.all([
     request<Health>("/health"),
     request<IntegrityStatus>("/v1/audit/verify"),
     request<AuditRecord[]>("/v1/audit/events?limit=200"),
     request<PendingReview[]>("/v1/reviews"),
     request<TelemetrySummary>("/v1/telemetry"),
     optionalRequest<BenchmarkSummary>("/v1/benchmark/latest"),
+    optionalRequest<BenchmarkSummary>("/v1/benchmark/managed-sample"),
   ]);
-  return { health, integrity, events, reviews, telemetry, benchmark };
+  return { health, integrity, events, reviews, telemetry, benchmark, managedBenchmark };
 }
 
 export async function decideReview(
