@@ -1,6 +1,7 @@
 import type {
   AuditRecord,
   BenchmarkSummary,
+  DemoStatus,
   Health,
   IntegrityStatus,
   PendingReview,
@@ -26,16 +27,31 @@ async function optionalRequest<T>(path: string): Promise<T | null> {
 }
 
 export async function loadDashboard() {
-  const [health, integrity, events, reviews, telemetry, benchmark, managedBenchmark] = await Promise.all([
+  const [health, integrity, events, reviews, telemetry, benchmark, managedBenchmark, demo] = await Promise.all([
     request<Health>("/health"),
     request<IntegrityStatus>("/v1/audit/verify"),
     request<AuditRecord[]>("/v1/audit/events?limit=200"),
     request<PendingReview[]>("/v1/reviews"),
     request<TelemetrySummary>("/v1/telemetry"),
-    optionalRequest<BenchmarkSummary>("/v1/benchmark/latest"),
-    optionalRequest<BenchmarkSummary>("/v1/benchmark/managed-sample"),
+    optionalRequest<BenchmarkSummary>("/v1/benchmark/latest").catch(() => null),
+    optionalRequest<BenchmarkSummary>("/v1/benchmark/managed-sample").catch(() => null),
+    optionalRequest<DemoStatus>("/v1/demo/status").catch(() => null),
   ]);
-  return { health, integrity, events, reviews, telemetry, benchmark, managedBenchmark };
+  return { health, integrity, events, reviews, telemetry, benchmark, managedBenchmark, demo };
+}
+
+export function resetDemo(): Promise<DemoStatus> {
+  return request<DemoStatus>("/v1/demo/reset", {
+    method: "POST",
+    body: JSON.stringify({ confirm: "reset" }),
+  });
+}
+
+export function seedDemo(): Promise<DemoStatus> {
+  return request<DemoStatus>("/v1/demo/seed", {
+    method: "POST",
+    body: JSON.stringify({ confirm: "seed" }),
+  });
 }
 
 export async function decideReview(

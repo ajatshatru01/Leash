@@ -130,15 +130,51 @@ class AuditStore:
     async def recent_events(self, limit: int = 100) -> tuple[AuditRecord, ...]:
         return self._recent_events_sync(limit)
 
-    async def telemetry_summary(self) -> TelemetrySummary:
-        return self._telemetry_summary_sync()
+    async def demo_run_marker(self) -> tuple[int, str, bool, bool, str, int] | None:
+        return self._demo_run_marker_sync()
 
-    def _telemetry_summary_sync(self) -> TelemetrySummary:
+    def _demo_run_marker_sync(self) -> tuple[int, str, bool, bool, str, int] | None:
+        with closing(self._connect()) as db:
+            row = db.execute(
+                "SELECT sequence, payload_json FROM audit_events "
+                "WHERE stage = 'demo_reset' ORDER BY sequence DESC LIMIT 1"
+            ).fetchone()
+            if row is None:
+                return None
+            sequence = int(row["sequence"])
+            payload = cast(dict[str, object], json.loads(str(row["payload_json"])))
+            seeded = db.execute(
+                "SELECT 1 FROM audit_events WHERE stage = 'demo_seeded' "
+                "AND sequence > ? LIMIT 1",
+                (sequence,),
+            ).fetchone() is not None
+            attempted = db.execute(
+                "SELECT 1 FROM audit_events WHERE stage = 'demo_seed_started' "
+                "AND sequence > ? LIMIT 1",
+                (sequence,),
+            ).fetchone() is not None
+        reset_count = payload.get("capture_reset_count", -1)
+        return (
+            sequence,
+            str(payload["run_id"]),
+            seeded,
+            attempted,
+            str(payload.get("capture_instance_id", "")),
+            reset_count if isinstance(reset_count, int) else -1,
+        )
+
+    async def telemetry_summary(self, since_sequence: int = 0) -> TelemetrySummary:
+        return self._telemetry_summary_sync(since_sequence)
+
+    def _telemetry_summary_sync(self, since_sequence: int = 0) -> TelemetrySummary:
         with closing(self._connect()) as db:
             rows = db.execute(
-                "SELECT stage, payload_json FROM audit_events ORDER BY sequence"
+                "SELECT stage, payload_json FROM audit_events "
+                "WHERE sequence > ? ORDER BY sequence",
+                (since_sequence,),
             ).fetchall()
 
+        evaluated_actions = 0
         spark_calls = 0
         wonder_calls = 0
         wonder_escalations = 0
@@ -155,7 +191,9 @@ class AuditStore:
         for row in rows:
             stage = str(row["stage"])
             payload = cast(dict[str, object], json.loads(str(row["payload_json"])))
-            if stage == "model_call":
+            if stage == "verdict":
+                evaluated_actions += 1
+            elif stage == "model_call":
                 component = payload.get("component")
                 usage = payload.get("usage")
                 if isinstance(usage, dict):
@@ -215,6 +253,17 @@ class AuditStore:
             if values
         }
         return TelemetrySummary(
+            evaluated_actions=evaluated_actions,
+            locally_handled_actions=avoided,
+            locally_handled_percent=(
+                round(100 * avoided / evaluated_actions, 1) if evaluated_actions else None
+            ),
+            wonder_escalation_percent=(
+                round(100 * wonder_escalations / evaluated_actions, 1)
+                if evaluated_actions
+                else None
+            ),
+            model_calls_avoided=avoided + cache_hits,
             spark_calls=spark_calls,
             wonder_calls=wonder_calls,
             wonder_escalations=wonder_escalations,

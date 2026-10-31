@@ -3,6 +3,7 @@ import type {
   BenchmarkConfigurationView,
   BenchmarkSummaryView,
   Decision,
+  DemoStatusView,
   HealthResponse,
   ImpactPreview,
   LatencySummary,
@@ -25,6 +26,7 @@ export type Health = HealthResponse;
 export type PendingReview = PendingReviewView;
 export type BenchmarkConfiguration = BenchmarkConfigurationView;
 export type BenchmarkSummary = BenchmarkSummaryView;
+export type DemoStatus = DemoStatusView;
 
 export interface IntegrityStatus {
   valid: boolean;
@@ -41,4 +43,6 @@ export interface ActionSummary {
   verdict: Verdict | null;
   executed: boolean;
   createdAt: string;
+  story: string | null;
+  mode: string | null;
 }

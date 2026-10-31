@@ -14,6 +14,8 @@ SCHEMAS = (
     "BenchmarkConfigurationView",
     "BenchmarkSummaryView",
     "Decision",
+    "DemoFixtureStatus",
+    "DemoStatusView",
     "HealthResponse",
     "ImpactPreview",
     "LatencySummary",

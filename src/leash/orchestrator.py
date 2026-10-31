@@ -259,10 +259,16 @@ class EvaluationOrchestrator:
         if not approved:
             return ApprovalResult(verdict=verdict)
 
+        execution_started = perf_counter()
         execution = await self._executor.execute(
             proposal=pending.proposal,
             preview=pending.preview,
             verdict=verdict,
+        )
+        await self._audit_latency(
+            action_id,
+            "execution",
+            (perf_counter() - execution_started) * 1000,
         )
         await self._audit.append(
             AuditEvent(

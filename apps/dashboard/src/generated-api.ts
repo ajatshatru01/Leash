@@ -36,6 +36,29 @@ export interface BenchmarkSummaryView {
 
 export type Decision = "allow" | "review" | "block";
 
+export interface DemoFixtureStatus {
+  prepared: boolean;
+  preserved: boolean;
+  expected_files: number;
+  preserved_files: number;
+  expected_bytes: number;
+  actual_bytes: number;
+}
+
+export interface DemoStatusView {
+  run_id: string | null;
+  reset_sequence: number;
+  seeded: boolean;
+  seed_attempted: boolean;
+  mode: "recorded_mock";
+  fixture: DemoFixtureStatus;
+  capture_online: boolean;
+  capture_evidence_valid: boolean;
+  capture_requests: number | null;
+  capture_bytes: number | null;
+  capture_note: string;
+}
+
 export interface HealthResponse {
   status: "ok";
   environment: string;
@@ -45,6 +68,8 @@ export interface HealthResponse {
   model_api_key_configured: boolean;
   spark_model: string;
   judge_model: string;
+  judge_prompt_version: string;
+  policy_version: string;
 }
 
 export interface ImpactPreview {
@@ -87,6 +112,11 @@ export interface SecretFinding {
 }
 
 export interface TelemetrySummary {
+  evaluated_actions: number;
+  locally_handled_actions: number;
+  locally_handled_percent: number | null;
+  wonder_escalation_percent: number | null;
+  model_calls_avoided: number;
   spark_calls: number;
   wonder_calls: number;
   wonder_escalations: number;

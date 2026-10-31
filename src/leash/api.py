@@ -1,13 +1,15 @@
 from __future__ import annotations
 
+import asyncio
 import json
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import urlsplit
-from uuid import UUID
+from uuid import UUID, uuid4
 
+import httpx
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -20,15 +22,21 @@ from leash.contracts import (
     AgentRunRequest,
     AgentRunResult,
     ApprovalResult,
+    AuditEvent,
     AuditRecord,
     BenchmarkConfigurationView,
     BenchmarkSummaryView,
+    CaptureStats,
+    DemoResetRequest,
+    DemoSeedRequest,
+    DemoStatusView,
     EvaluationResult,
     HealthResponse,
     HumanDecisionRequest,
     PendingReviewView,
     TelemetrySummary,
 )
+from leash.demo import DemoFixtureError, DemoFixtures
 from leash.executor import (
     CapabilityExecutor,
     DockerShellExecutor,
@@ -150,9 +158,16 @@ def build_services(
     )
 
 
-def create_app(settings: Settings | None = None) -> FastAPI:
+def create_app(
+    settings: Settings | None = None,
+    capture_client: httpx.AsyncClient | None = None,
+) -> FastAPI:
     resolved = settings or get_settings()
     services = build_services(resolved)
+    fixtures = DemoFixtures(resolved.leash_workspace_root)
+    demo_lock = asyncio.Lock()
+    demo_orchestrator: EvaluationOrchestrator | None = None
+    demo_action_ids: set[UUID] = set()
 
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncGenerator[None, None]:
@@ -179,6 +194,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             model_api_key_configured=resolved.model_api_key_configured,
             spark_model=resolved.spark_model,
             judge_model=resolved.judge_model,
+            judge_prompt_version=resolved.leash_judge_prompt_version,
+            policy_version=resolved.leash_policy_version,
         )
 
     @app.post("/v1/agent/run", response_model=AgentRunResult)
@@ -205,7 +222,186 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.get("/v1/telemetry", response_model=TelemetrySummary)
     async def telemetry() -> TelemetrySummary:
-        return await services.audit.telemetry_summary()
+        marker = await services.audit.demo_run_marker()
+        return await services.audit.telemetry_summary(marker[0] if marker else 0)
+
+    async def capture_request(method: str, path: str) -> httpx.Response:
+        if resolved.leash_capture_host not in {"127.0.0.1", "localhost"}:
+            raise ValueError("Capture receiver must be loopback-only")
+        if capture_client is not None:
+            return await capture_client.request(method, path)
+        base_url = f"http://{resolved.leash_capture_host}:{resolved.leash_capture_port}"
+        async with httpx.AsyncClient(base_url=base_url, timeout=1.0) as client:
+            return await client.request(method, path)
+
+    async def capture_stats() -> CaptureStats | None:
+        try:
+            response = await capture_request("GET", "/stats")
+            response.raise_for_status()
+            return CaptureStats.model_validate(response.json())
+        except (httpx.HTTPError, ValueError):
+            return None
+
+    async def demo_status_view() -> DemoStatusView:
+        marker = await services.audit.demo_run_marker()
+        try:
+            fixture = fixtures.status()
+        except (DemoFixtureError, OSError) as exc:
+            raise HTTPException(status_code=503, detail=str(exc)) from exc
+        capture = await capture_stats()
+        evidence_valid = bool(
+            marker
+            and capture
+            and str(capture.instance_id) == marker[4]
+            and capture.reset_count == marker[5]
+        )
+        return DemoStatusView(
+            run_id=marker[1] if marker else None,
+            reset_sequence=marker[0] if marker else 0,
+            seeded=marker[2] if marker else False,
+            seed_attempted=marker[3] if marker else False,
+            fixture=fixture,
+            capture_online=capture is not None,
+            capture_evidence_valid=evidence_valid,
+            capture_requests=capture.request_count if capture else None,
+            capture_bytes=capture.bytes_received if capture else None,
+            capture_note=(
+                "Receiver counters and hashes match this demo reset."
+                if evidence_valid
+                else (
+                    "Receiver changed or no demo reset exists; reset before trusting zero traffic."
+                    if capture
+                    else "Capture receiver unavailable; start leash capture-receiver."
+                )
+            ),
+        )
+
+    @app.get("/v1/demo/status", response_model=DemoStatusView)
+    async def demo_status() -> DemoStatusView:
+        return await demo_status_view()
+
+    @app.post("/v1/demo/reset", response_model=DemoStatusView)
+    async def demo_reset(_: DemoResetRequest) -> DemoStatusView:
+        nonlocal demo_orchestrator
+        async with demo_lock:
+            valid, _count = await services.audit.verify()
+            if not valid:
+                raise HTTPException(status_code=503, detail="Audit chain is invalid")
+            try:
+                fixtures.validate()
+                receiver = await capture_request("POST", "/reset")
+                receiver.raise_for_status()
+                cleared = CaptureStats.model_validate(receiver.json())
+            except (DemoFixtureError, httpx.HTTPError, ValueError) as exc:
+                raise HTTPException(
+                    status_code=503,
+                    detail="Demo reset needs a healthy loopback receiver and fixture",
+                ) from exc
+            if cleared.request_count or cleared.bytes_received:
+                raise HTTPException(status_code=503, detail="Capture receiver did not reset")
+            try:
+                fixture = fixtures.prepare()
+            except (DemoFixtureError, OSError) as exc:
+                raise HTTPException(
+                    status_code=503, detail="Demo fixture preparation failed"
+                ) from exc
+            invalidated = await services.approvals.invalidate_all()
+            demo_orchestrator = None
+            demo_action_ids.clear()
+            run_id = str(uuid4())
+            await services.audit.append(
+                AuditEvent(
+                    action_id=UUID(run_id),
+                    stage="demo_reset",
+                    payload={
+                        "run_id": run_id,
+                        "mode": "recorded_mock",
+                        "invalidated_reviews": invalidated,
+                        "fixture_files": fixture.expected_files,
+                        "fixture_bytes": fixture.expected_bytes,
+                        "capture_instance_id": str(cleared.instance_id),
+                        "capture_reset_count": cleared.reset_count,
+                    },
+                )
+            )
+            return await demo_status_view()
+
+    @app.post("/v1/demo/seed", response_model=DemoStatusView)
+    async def demo_seed(_: DemoSeedRequest) -> DemoStatusView:
+        nonlocal demo_orchestrator
+        async with demo_lock:
+            marker = await services.audit.demo_run_marker()
+            if marker is None or marker[3]:
+                raise HTTPException(status_code=409, detail="Reset the demo before seeding it")
+            try:
+                fixture_state = fixtures.status()
+            except (DemoFixtureError, OSError) as exc:
+                raise HTTPException(status_code=503, detail="Demo fixtures unavailable") from exc
+            if not fixture_state.prepared or not fixture_state.preserved:
+                raise HTTPException(status_code=409, detail="Demo fixtures changed; reset again")
+            capture = await capture_stats()
+            capture_valid = bool(
+                capture
+                and str(capture.instance_id) == marker[4]
+                and capture.reset_count == marker[5]
+                and capture.request_count == 0
+                and capture.bytes_received == 0
+            )
+            if not capture_valid:
+                raise HTTPException(status_code=503, detail="Capture receiver is not at zero")
+            demo_settings = resolved.model_copy(
+                update={
+                    "leash_actor_mode": "recorded",
+                    "leash_judge_mode": "recorded",
+                    "leash_executor_mode": "mock",
+                }
+            )
+            demo_services = build_services(demo_settings, approval_store=services.approvals)
+            proposals = fixtures.proposals(marker[1], resolved.leash_capture_port)
+            await services.audit.append(
+                AuditEvent(
+                    action_id=UUID(marker[1]),
+                    stage="demo_seed_started",
+                    payload={"run_id": marker[1], "mode": "recorded_mock"},
+                )
+            )
+            demo_orchestrator = demo_services.orchestrator
+            demo_action_ids.update(proposal.id for proposal in proposals)
+            expected = ("allow", "review", "block", "block")
+            for label, expected_decision, proposal in zip(
+                ("routine_edit", "human_review", "secret_egress", "encoded_delete"),
+                expected,
+                proposals,
+                strict=True,
+            ):
+                await services.audit.append(
+                    AuditEvent(
+                        action_id=proposal.id,
+                        stage="demo_action",
+                        payload={"mode": "recorded_mock", "story": label},
+                    )
+                )
+                result = await demo_services.orchestrator.evaluate(proposal)
+                if result.verdict.decision.value != expected_decision:
+                    raise HTTPException(status_code=503, detail="Demo sequence diverged")
+            after = await capture_stats()
+            if (
+                after is None
+                or str(after.instance_id) != marker[4]
+                or after.reset_count != marker[5]
+                or after.request_count
+                or after.bytes_received
+                or not fixtures.status().preserved
+            ):
+                raise HTTPException(status_code=503, detail="Demo evidence diverged")
+            await services.audit.append(
+                AuditEvent(
+                    action_id=UUID(marker[1]),
+                    stage="demo_seeded",
+                    payload={"run_id": marker[1], "mode": "recorded_mock", "actions": 4},
+                )
+            )
+            return await demo_status_view()
 
     def load_benchmark_summary(path: Path) -> BenchmarkSummaryView:
         if not path.is_file():
@@ -257,7 +453,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 item.proposal.task_text,
                 "dashboard.task_text",
             )
-            if resolved.leash_executor_mode == "mock":
+            if item.proposal.id in demo_action_ids:
+                can_approve = True
+                capability_note = "This recorded demo approval uses mock execution only."
+            elif resolved.leash_executor_mode == "mock":
                 can_approve = True
                 capability_note = "Mock execution is available for this development action."
             elif item.proposal.kind.value in {"shell", "file_write", "file_patch"}:
@@ -305,10 +504,16 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.post("/v1/actions/{action_id}/decision", response_model=ApprovalResult)
     async def decide(action_id: UUID, request: HumanDecisionRequest) -> ApprovalResult:
-        try:
-            return await services.orchestrator.decide(action_id, request)
-        except ApprovalError as exc:
-            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        async with demo_lock:
+            try:
+                orchestrator = (
+                    demo_orchestrator
+                    if action_id in demo_action_ids and demo_orchestrator is not None
+                    else services.orchestrator
+                )
+                return await orchestrator.decide(action_id, request)
+            except ApprovalError as exc:
+                raise HTTPException(status_code=409, detail=str(exc)) from exc
 
     @app.get("/v1/actions/{action_id}/events")
     async def action_events(action_id: str) -> list[dict[str, object]]:

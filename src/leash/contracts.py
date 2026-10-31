@@ -272,6 +272,11 @@ class LatencySummary(StrictModel):
 
 
 class TelemetrySummary(StrictModel):
+    evaluated_actions: int = Field(ge=0)
+    locally_handled_actions: int = Field(ge=0)
+    locally_handled_percent: float | None = Field(default=None, ge=0, le=100)
+    wonder_escalation_percent: float | None = Field(default=None, ge=0, le=100)
+    model_calls_avoided: int = Field(ge=0)
     spark_calls: int = Field(ge=0)
     wonder_calls: int = Field(ge=0)
     wonder_escalations: int = Field(ge=0)
@@ -319,10 +324,43 @@ class PendingReviewView(StrictModel):
 
 
 class CaptureStats(StrictModel):
+    instance_id: UUID
+    reset_count: int = Field(ge=0)
     request_count: int = Field(ge=0)
     bytes_received: int = Field(ge=0)
     last_body_sha256: str | None = Field(default=None, min_length=64, max_length=64)
     last_content_type: str | None = None
+
+
+class DemoFixtureStatus(StrictModel):
+    prepared: bool
+    preserved: bool
+    expected_files: int = Field(ge=0)
+    preserved_files: int = Field(ge=0)
+    expected_bytes: int = Field(ge=0)
+    actual_bytes: int = Field(ge=0)
+
+
+class DemoResetRequest(StrictModel):
+    confirm: Literal["reset"]
+
+
+class DemoSeedRequest(StrictModel):
+    confirm: Literal["seed"]
+
+
+class DemoStatusView(StrictModel):
+    run_id: str | None = None
+    reset_sequence: int = Field(ge=0)
+    seeded: bool = False
+    seed_attempted: bool = False
+    mode: Literal["recorded_mock"] = "recorded_mock"
+    fixture: DemoFixtureStatus
+    capture_online: bool
+    capture_evidence_valid: bool
+    capture_requests: int | None = Field(default=None, ge=0)
+    capture_bytes: int | None = Field(default=None, ge=0)
+    capture_note: str
 
 
 class WorkspaceInspectionResult(StrictModel):
@@ -360,3 +398,5 @@ class HealthResponse(StrictModel):
     model_api_key_configured: bool
     spark_model: str
     judge_model: str
+    judge_prompt_version: str
+    policy_version: str

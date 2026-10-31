@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 from dataclasses import dataclass
+from uuid import uuid4
 
 from fastapi import FastAPI, HTTPException, Request
 
@@ -20,6 +21,8 @@ class _CaptureSnapshot:
 
 class CaptureStore:
     def __init__(self) -> None:
+        self._instance_id = uuid4()
+        self._reset_count = 0
         self._request_count = 0
         self._bytes_received = 0
         self._last_body_sha256: str | None = None
@@ -40,6 +43,7 @@ class CaptureStore:
 
     async def reset(self) -> CaptureStats:
         async with self._lock:
+            self._reset_count += 1
             self._request_count = 0
             self._bytes_received = 0
             self._last_body_sha256 = None
@@ -54,6 +58,8 @@ class CaptureStore:
             last_content_type=self._last_content_type,
         )
         return CaptureStats(
+            instance_id=self._instance_id,
+            reset_count=self._reset_count,
             request_count=snapshot.request_count,
             bytes_received=snapshot.bytes_received,
             last_body_sha256=snapshot.last_body_sha256,

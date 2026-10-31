@@ -28,6 +28,8 @@ async def test_health_starts_without_api_keys(settings: Settings) -> None:
         "model_api_key_configured": False,
         "spark_model": "muse-spark-1.3",
         "judge_model": "muse-wonder-1.0",
+        "judge_prompt_version": "wonder-safety-v1",
+        "policy_version": "demo-policy-v1",
     }
 
 

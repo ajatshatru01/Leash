@@ -9,6 +9,7 @@ The project is being built for the Meta Global AI Developer Hackathon. See:
 - [`IMPLEMENTATION_PLAN.md`](IMPLEMENTATION_PLAN.md) for milestones and stack;
 - [`AGENTS.md`](AGENTS.md) for contributor constraints;
 - [`docs/PROJECT_AUDIT.md`](docs/PROJECT_AUDIT.md) for evidence-backed status and gaps;
+- [`docs/DASHBOARD_DEMO.md`](docs/DASHBOARD_DEMO.md) for the no-spend dashboard rehearsal;
 - [`docs/THIRD_PARTY_NOTICES.md`](docs/THIRD_PARTY_NOTICES.md) for dependency provenance.
 
 ## Local configuration
@@ -99,7 +100,8 @@ Build the local dashboard into the Python package, then serve it from the same F
 ```
 
 The compiled dashboard is checked in under `src/leash/static`, so a clean checkout only needs
-the Python environment to run the one-command demo. Rebuild after changing the React source with
+the Python environment to start the dashboard with one command. The complete local demo also
+starts the capture receiver; see [`docs/DASHBOARD_DEMO.md`](docs/DASHBOARD_DEMO.md). Rebuild after changing the React source with
 `pnpm --dir apps/dashboard install --frozen-lockfile` and
 `pnpm --dir apps/dashboard run build`. After changing API contracts, run
 `.\.venv\Scripts\python.exe scripts\generate_api_types.py` first; the test suite checks that
@@ -111,6 +113,8 @@ file contents. Approval is disabled when no real adapter exists for an action ki
 dialog shows the exact action and preview digests and disables submission on expiry or changed review data.
 The benchmark chart reads generated summary artifacts, with the managed sample labeled separately
 from the 60-case recorded replay.
+The reset/sequence controls prepare disposable fixtures and replay the four decision paths with
+recorded Wonder and mock execution, without model API calls.
 
 ## Development
 

@@ -79,3 +79,10 @@ class ApprovalStore:
             for action_id in expired:
                 del self._pending[action_id]
             return tuple(sorted(self._pending.values(), key=lambda pending: pending.expires_at))
+
+    async def invalidate_all(self) -> int:
+        """Invalidate reviews when a new disposable demo run starts."""
+        async with self._lock:
+            count = len(self._pending)
+            self._pending.clear()
+            return count
